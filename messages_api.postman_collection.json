@@ -1,0 +1,217 @@
+{
+  "info": {
+    "_postman_id": "a9a3b632-4541-4569-b590-b187640b8a32",
+    "name": "Messages API",
+    "description": "Postman collection for the PostgreSQL-backed Messages API backend (FastAPI).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/login"
+            },
+            "description": "Authenticate a user using their email and password."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/users"
+            },
+            "description": "Retrieve a list of all registered users (id, name, and email)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Inbox & Sent",
+      "item": [
+        {
+          "name": "Get Inbox",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/inbox?user_id=2"
+            },
+            "description": "Fetch the inbox messages for a user, excluding hidden messages. Returns reply count and sender details."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sent Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sent?user_id=1"
+            },
+            "description": "Fetch sent messages for a specific user, excluding hidden ones."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Thread",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/thread?id=1"
+            },
+            "description": "Fetch a specific message details along with all thread replies."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Actions",
+      "item": [
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sender_id\": 1,\n  \"receiver_ids\": [2, 3],\n  \"subject\": \"Postman Test Subject\",\n  \"message\": \"This is a test message sent via Postman!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/send_message"
+            },
+            "description": "Insert a new message row for one or more receiver IDs."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Reply",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_id\": 1,\n  \"sender_id\": 2,\n  \"receiver_id\": 1,\n  \"message\": \"This is a reply from Bob to Alice.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/send_reply"
+            },
+            "description": "Reply to an existing message thread."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/mark_read"
+            },
+            "description": "Mark a message as read."
+          },
+          "response": []
+        },
+        {
+          "name": "Hide Inbox Messages",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [1],\n  \"user_id\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/hide_messages"
+            },
+            "description": "Mark a list of inbox message IDs as hidden/deleted for a given user."
+          },
+          "response": []
+        },
+        {
+          "name": "Hide Sent Messages",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [1],\n  \"user_id\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/hide_sent"
+            },
+            "description": "Mark a list of sent message IDs as hidden/deleted for the sender."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ]
+}

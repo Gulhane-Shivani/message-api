@@ -1,111 +1,134 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+@layer base {
+  * {
+    box-sizing: border-box;
   }
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-}
 
-body {
-  margin: 0;
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+  body {
+    @apply bg-slate-50 text-slate-700 dark:bg-gray-950 dark:text-slate-400;
   }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { @apply bg-slate-200 dark:bg-slate-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-slate-300 dark:bg-slate-600; }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+@layer components {
+  /* ---- Buttons ---- */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2
+           bg-primary-500 hover:bg-primary-600 active:bg-primary-700
+           text-white font-semibold text-sm
+           px-5 py-3 rounded-xl
+           transition-all duration-200
+           shadow-md hover:shadow-glow-indigo
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
   }
-}
-p {
-  margin: 0;
-}
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2
+           bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800
+           text-slate-500 dark:text-slate-400
+           font-medium text-sm
+           px-3 py-2 rounded-lg
+           transition-all duration-150
+           focus:outline-none;
+  }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  .btn-icon {
+    @apply inline-flex items-center justify-center
+           w-9 h-9 rounded-lg
+           bg-white dark:bg-slate-800
+           border border-slate-200 dark:border-slate-700
+           text-slate-500 dark:text-slate-400
+           hover:bg-slate-50 dark:hover:bg-slate-700
+           hover:text-slate-700 dark:hover:text-slate-200
+           transition-all duration-150
+           focus:outline-none;
+  }
+
+  /* ---- Inputs ---- */
+  .form-input {
+    @apply w-full px-4 py-3 rounded-xl
+           border border-slate-200 dark:border-slate-700
+           bg-slate-50 dark:bg-slate-900
+           text-slate-900 dark:text-slate-100
+           placeholder-slate-400 dark:placeholder-slate-600
+           text-sm font-medium
+           transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-400
+           focus:bg-white dark:focus:bg-slate-800;
+  }
+
+  .form-textarea {
+    @apply form-input resize-y min-h-[80px];
+  }
+
+  /* ---- Cards ---- */
+  .card {
+    @apply bg-white dark:bg-slate-900
+           border border-slate-200 dark:border-slate-800
+           rounded-2xl shadow-card;
+  }
+
+  /* ---- Badges ---- */
+  .badge {
+    @apply inline-flex items-center gap-1
+           px-2 py-0.5 rounded-full
+           text-xs font-bold;
+  }
+
+  .badge-primary {
+    @apply badge bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400;
+  }
+
+  .badge-danger {
+    @apply badge bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400;
+  }
+
+  /* ---- Nav items ---- */
+  .nav-item {
+    @apply flex items-center justify-between gap-3
+           px-3 py-2.5 rounded-xl
+           text-sm font-medium text-slate-600 dark:text-slate-400
+           cursor-pointer transition-all duration-150
+           hover:bg-white dark:hover:bg-slate-800
+           hover:text-slate-900 dark:hover:text-slate-100;
+  }
+
+  .nav-item.active {
+    @apply bg-white dark:bg-slate-800
+           text-primary-600 dark:text-primary-400
+           font-semibold shadow-card
+           border border-slate-200 dark:border-slate-700;
+  }
+
+  /* ---- Alert banners ---- */
+  .alert {
+    @apply flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium;
+  }
+
+  .alert-error {
+    @apply alert bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400
+           border border-red-200 dark:border-red-800;
+  }
+
+  .alert-success {
+    @apply alert bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400
+           border border-emerald-200 dark:border-emerald-800;
+  }
 }

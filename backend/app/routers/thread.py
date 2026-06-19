@@ -11,7 +11,7 @@ from app.database import get_db
 router = APIRouter()
 
 MESSAGE_SQL = """
-SELECT m.id, m.subject, m.message, m.created_at, u.name AS sender_name
+SELECT m.id, m.sender_id, m.receiver_id, m.subject, m.message, m.created_at, u.name AS sender_name
 FROM messages m
 JOIN users u ON m.sender_id = u.id
 WHERE m.id = %s

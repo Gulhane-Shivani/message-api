@@ -1,19 +1,104 @@
-export const BASE = 'http://127.0.0.1:8000/api';
+import axios from 'axios';
 
-const json = (res) => { if (!res.ok) throw new Error(res.statusText); return res.json(); };
+export const BASE_URL = 'http://127.0.0.1:8000/api';
+export const WS_BASE_URL = 'ws://127.0.0.1:8000/api/ws';
+
+// Create Axios Instance
+const client = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request Interceptor to add JWT token
+client.interceptors.request.use(
+  (config) => {
+    const user = JSON.parse(localStorage.getItem('pulsemail_user') || 'null');
+    if (user && user.token) {
+      config.headers.Authorization = `Bearer ${user.token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response Interceptor for handling errors
+client.interceptors.response.use(
+  (response) => response.data,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('pulsemail_user');
+      window.location.reload();
+    }
+    const message = error.response?.data?.detail || error.message || 'Server error';
+    return Promise.reject(new Error(message));
+  }
+);
 
 export const api = {
-  login:        (body)            => fetch(`${BASE}/login`,         { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(json),
-  register:     (body)            => fetch(`${BASE}/register`,      { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(json),
-  users:        ()                => fetch(`${BASE}/users`).then(json),
-  inbox:        (uid)             => fetch(`${BASE}/inbox?user_id=${uid}`).then(json),
-  sent:         (uid)             => fetch(`${BASE}/sent?user_id=${uid}`).then(json),
-  thread:       (id)              => fetch(`${BASE}/thread?id=${id}`).then(json),
-  markRead:     (message_id)      => fetch(`${BASE}/mark_read`,     { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message_id}) }).then(json),
-  sendMessage:  (body)            => fetch(`${BASE}/send_message`,  { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(json),
-  sendReply:    (body)            => fetch(`${BASE}/send_reply`,    { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(json),
-  hideMessages: (ids, user_id)    => fetch(`${BASE}/hide_messages`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids, user_id}) }).then(json),
-  hideSent:     (ids, user_id)    => fetch(`${BASE}/hide_sent`,     { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids, user_id}) }).then(json),
+  // Auth
+  login: (data) => client.post('/login', data),
+  register: (data) => client.post('/register', data),
+  getCurrentUser: () => client.get('/users/me'),
+  getUsers: (search = '') => client.get(`/users?search=${encodeURIComponent(search)}`),
+
+  // Community Management
+  getCommunities: () => client.get('/communities'),
+  createCommunity: (name, description = '', imageUrl = '') => 
+    client.post(`/communities?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&image_url=${encodeURIComponent(imageUrl)}`),
+  editCommunity: (id, name, description = '', imageUrl = '') => 
+    client.put(`/communities/${id}?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&image_url=${encodeURIComponent(imageUrl)}`),
+  deleteCommunity: (id) => client.delete(`/communities/${id}`),
+  joinCommunity: (id) => client.post(`/communities/${id}/join`),
+  leaveCommunity: (id) => client.post(`/communities/${id}/leave`),
+  getCommunityMembers: (id) => client.get(`/communities/${id}/members`),
+
+  // Community Feed
+  getPosts: (communityId) => client.get(`/communities/${communityId}/posts`),
+  createPost: (communityId, content, imageUrl = '', videoUrl = '') => 
+    client.post(`/communities/${communityId}/posts?content=${encodeURIComponent(content)}&image_url=${encodeURIComponent(imageUrl)}&video_url=${encodeURIComponent(videoUrl)}`),
+  likePost: (postId) => client.post(`/posts/${postId}/like`),
+  getComments: (postId) => client.get(`/posts/${postId}/comments`),
+  commentOnPost: (postId, content, parentId = null) => {
+    let url = `/posts/${postId}/comments?content=${encodeURIComponent(content)}`;
+    if (parentId) url += `&parent_id=${parentId}`;
+    return client.post(url);
+  },
+
+  // One-to-One and Group Chat
+  getConversations: () => client.get('/conversations'),
+  getOrCreateConversation: (type, otherUserId = null, name = '', communityId = null) => {
+    let url = `/conversations?type=${type}`;
+    if (otherUserId) url += `&other_user_id=${otherUserId}`;
+    if (name) url += `&name=${encodeURIComponent(name)}`;
+    if (communityId) url += `&community_id=${communityId}`;
+    return client.post(url);
+  },
+  getMessages: (conversationId) => client.get(`/conversations/${conversationId}/messages`),
+  sendMessage: (conversationId, content, messageType = 'text', fileUrl = '') => 
+    client.post(`/conversations/${conversationId}/messages?content=${encodeURIComponent(content)}&message_type=${messageType}&file_url=${encodeURIComponent(fileUrl)}`),
+  pinMessage: (messageId) => client.put(`/messages/${messageId}/pin`),
+  reactToMessage: (messageId, reactionType) => client.post(`/messages/${messageId}/react?reaction_type=${encodeURIComponent(reactionType)}`),
+
+  // Notifications
+  getNotifications: () => client.get('/notifications'),
+  markNotificationRead: (id) => client.put(`/notifications/${id}/read`),
+
+  // Search
+  search: (q) => client.get(`/search?q=${encodeURIComponent(q)}`),
+
+  // File Upload
+  uploadFile: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return axios.post(`${BASE_URL}/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        Authorization: `Bearer ${JSON.parse(localStorage.getItem('pulsemail_user') || 'null')?.token}`
+      }
+    }).then(res => res.data);
+  }
 };
 
 export const fmtDate = (s) => {
@@ -21,8 +106,10 @@ export const fmtDate = (s) => {
   const d = new Date(s), now = new Date(), diff = Math.floor((now - d) / 60000);
   if (diff < 1) return 'Just now';
   if (diff < 60) return `${diff}m ago`;
-  if (diff < 1440 && d.getDate() === now.getDate()) return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  const yest = new Date(now); yest.setDate(now.getDate()-1);
+  if (diff < 1440 && d.getDate() === now.getDate()) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
   if (d.toDateString() === yest.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString([],{day:'numeric',month:'short'});
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
 };

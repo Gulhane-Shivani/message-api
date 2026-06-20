@@ -1,110 +1,115 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from './api.js';
-import LoginPage   from './components/LoginPage.jsx';
-import Sidebar     from './components/Sidebar.jsx';
-import MessageList from './components/MessageList.jsx';
-import ThreadPane  from './components/ThreadPane.jsx';
-import ComposePage from './components/ComposePage.jsx';
+import LoginPage from './components/LoginPage.jsx';
+import Sidebar from './components/Sidebar.jsx';
+import CommunitiesView from './components/CommunitiesView.jsx';
+import ChatView from './components/ChatView.jsx';
+import NotificationsView from './components/NotificationsView.jsx';
+import SearchView from './components/SearchView.jsx';
 
 export default function App() {
-  const [user, setUser]       = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pulsemail_user')); } catch { return null; }
-  });
-  const [users, setUsers]     = useState([]);
-  const [tab, setTab]         = useState('inbox');
-  const [messages, setMsgs]   = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  // Load all users once (for compose)
-  useEffect(() => {
-    api.users().then(setUsers).catch(() => {});
-  }, []);
-
-  // Load messages whenever tab or user changes
-  const loadMessages = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
+  const [user, setUser] = useState(() => {
     try {
-      const data = tab === 'inbox'
-        ? await api.inbox(user.id)
-        : await api.sent(user.id);
-      setMsgs(data);
-      setSelected(null);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, [user, tab]);
-
-  useEffect(() => { loadMessages(); }, [loadMessages]);
-
-  // Mark as read then open thread
-  const handleSelect = async (msg) => {
-    if (tab === 'inbox' && !msg.is_read) {
-      api.markRead(msg.id).catch(() => {});
-      setMsgs(prev => prev.map(m => m.id === msg.id ? { ...m, is_read: true } : m));
+      return JSON.parse(localStorage.getItem('pulsemail_user') || 'null');
+    } catch {
+      return null;
     }
-    // Thread detail carries sender_id / receiver_id from the inbox/sent row
-    setSelected(msg);
-  };
+  });
 
-  // Hide (delete) messages
-  const handleHide = async (ids) => {
-    const fn = tab === 'inbox' ? api.hideMessages : api.hideSent;
-    await fn(ids, user.id).catch(() => {});
-    setMsgs(prev => prev.filter(m => !ids.includes(m.id)));
-    if (selected && ids.includes(selected.id)) setSelected(null);
-  };
+  const [tab, setTab] = useState('communities');
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
+  // States for search click redirection
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedCommunity, setSelectedCommunity] = useState(null);
+
+  // Load counts for notification and chat badges
+  const loadBadges = useCallback(async () => {
+    if (!user) return;
+    try {
+      // 1. Fetch unread notifications
+      const notifs = await api.getNotifications();
+      const unreadNotifs = notifs.filter(n => !n.is_read).length;
+      setNotificationCount(unreadNotifs);
+
+      // 2. Fetch unread messages count
+      const convs = await api.getConversations();
+      const totalUnreadChat = convs.reduce((acc, c) => acc + (c.unread_count || 0), 0);
+      setChatUnreadCount(totalUnreadChat);
+    } catch (e) {
+      console.error('Error fetching badges:', e);
+    }
+  }, [user]);
+
+  // Periodic badge checking
+  useEffect(() => {
+    loadBadges();
+    const interval = setInterval(loadBadges, 6000);
+    return () => clearInterval(interval);
+  }, [loadBadges]);
 
   const handleLogout = () => {
     localStorage.removeItem('pulsemail_user');
-    setUser(null); setMsgs([]); setSelected(null);
+    setUser(null);
   };
 
-  const unreadCount = useMemo(() =>
-    tab === 'inbox' ? messages.filter(m => !m.is_read).length : 0,
-    [messages, tab]);
+  // Callback to start DM chat from Search
+  const handleStartChatFromSearch = async (otherUser) => {
+    try {
+      // Create/Get conversation
+      const conv = await api.getOrCreateConversation('one_to_one', otherUser.id);
+      setSelectedConversation(conv);
+      setTab('chat');
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
-  if (!user) return <LoginPage onLogin={u => { setUser(u); }} />;
+  // Callback to view community from Search
+  const handleViewCommunityFromSearch = (community) => {
+    setSelectedCommunity(community);
+    setTab('communities');
+  };
+
+  if (!user) {
+    return <LoginPage onLogin={(u) => setUser(u)} />;
+  }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-gray-950">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-gray-900 font-sans">
       <Sidebar
         user={user}
         tab={tab}
-        setTab={t => { setTab(t); setSelected(null); }}
-        unreadCount={unreadCount}
+        setTab={setTab}
+        notificationCount={notificationCount}
+        chatUnreadCount={chatUnreadCount}
         onLogout={handleLogout}
       />
 
-      <div className="flex flex-1 overflow-hidden">
-        {tab === 'compose' ? (
-          <ComposePage
-            currentUser={user}
-            users={users}
-            onSent={() => { setTab('sent'); }}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {tab === 'communities' && (
+          <CommunitiesView 
+            currentUser={user} 
+            initialCommunity={selectedCommunity} 
+            clearInitialCommunity={() => setSelectedCommunity(null)} 
           />
-        ) : (
-          <>
-            <MessageList
-              tab={tab}
-              messages={messages}
-              selected={selected}
-              loading={loading}
-              onSelect={handleSelect}
-              onHide={handleHide}
-              onBulkHide={handleHide}
-              onRefresh={loadMessages}
-            />
-            <ThreadPane
-              message={selected}
-              tab={tab}
-              currentUser={user}
-              onDelete={handleHide}
-              onBack={() => setSelected(null)}
-            />
-          </>
         )}
-      </div>
+        {tab === 'chat' && (
+          <ChatView 
+            currentUser={user} 
+            initialConversation={selectedConversation} 
+            clearInitialConversation={() => setSelectedConversation(null)} 
+          />
+        )}
+        {tab === 'notifications' && <NotificationsView />}
+        {tab === 'search' && (
+          <SearchView
+            onStartChat={handleStartChatFromSearch}
+            onViewCommunity={handleViewCommunityFromSearch}
+          />
+        )}
+      </main>
     </div>
   );
 }

@@ -1,37 +1,37 @@
-"""
-Equivalent of login.php
-POST /api/login -> authenticate by email + password
-
-NOTE: The original PHP compared plaintext passwords directly in SQL
-(string-interpolated, which was also vulnerable to SQL injection).
-Here the query is parameterized to remove the injection risk, but the
-plaintext comparison itself is preserved so behavior matches the
-existing `users` table (which presumably stores plaintext passwords).
-If you control the schema, switch to hashed passwords
-(e.g. passlib/bcrypt) and update this comparison accordingly.
-"""
-from fastapi import APIRouter, Depends
-from psycopg2.extensions import connection as PgConnection
-from psycopg2.extras import RealDictCursor
-
-from app.database import get_db
-from app.models import LoginRequest
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from app.database import get_db_session
+from app.db_models import User
+from app.auth_utils import verify_password, create_access_token
+from pydantic import BaseModel
 
 router = APIRouter()
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 @router.post("/login")
-def login(payload: LoginRequest, conn: PgConnection = Depends(get_db)):
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute(
-        "SELECT * FROM users WHERE email = %s AND password = %s",
-        (payload.email, payload.password),
-    )
-    user = cursor.fetchone()
-    cursor.close()
-
-    if user:
-        return {"status": True, "user": dict(user)}
-
-    return {"status": False, "message": "Invalid Login"}
-
+def login(payload: LoginRequest, db: Session = Depends(get_db_session)):
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user or not verify_password(payload.password, user.password):
+        return {"status": False, "message": "Invalid Login"}
+    
+    # Generate token
+    token = create_access_token(data={"sub": user.email})
+    
+    # Update online status
+    user.online_status = True
+    db.commit()
+    
+    return {
+        "status": True, 
+        "token": token,
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "avatar_url": user.avatar_url,
+            "online_status": user.online_status
+        }
+    }

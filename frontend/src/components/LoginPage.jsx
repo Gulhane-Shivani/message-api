@@ -28,13 +28,14 @@ export default function LoginPage({ onLogin }) {
     try {
       const data = await api.login({ email, password });
       if (data.status && data.user) {
-        localStorage.setItem('pulsemail_user', JSON.stringify(data.user));
-        onLogin(data.user);
+        const userData = { ...data.user, token: data.token };
+        localStorage.setItem('pulsemail_user', JSON.stringify(userData));
+        onLogin(userData);
       } else {
         setError(data.message || 'Invalid email or password.');
       }
-    } catch {
-      setError('Cannot reach the server. Is the backend running?');
+    } catch (err) {
+      setError(err.message || 'Cannot reach the server. Is the backend running?');
     } finally {
       setLoading(false);
     }
@@ -51,14 +52,17 @@ export default function LoginPage({ onLogin }) {
     try {
       const data = await api.register({ name: regName.trim(), email: regEmail, password: regPassword });
       if (data.status && data.user) {
-        setSuccess('Account created! You can now sign in.');
-        setRegName(''); setRegEmail(''); setRegPassword(''); setRegConfirm('');
-        setTimeout(() => { setMode('login'); setSuccess(''); }, 1800);
+        const userData = { ...data.user, token: data.token };
+        localStorage.setItem('pulsemail_user', JSON.stringify(userData));
+        setSuccess('Account created successfully!');
+        setTimeout(() => {
+          onLogin(userData);
+        }, 1000);
       } else {
         setError(data.message || 'Registration failed.');
       }
-    } catch {
-      setError('Cannot reach the server. Is the backend running?');
+    } catch (err) {
+      setError(err.message || 'Cannot reach the server. Is the backend running?');
     } finally {
       setLoading(false);
     }

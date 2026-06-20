@@ -1,20 +1,8 @@
-"""
-FastAPI application entrypoint.
-
-This replaces the standalone PHP scripts (get_inbox.php, get_sent.php,
-get_thread.php, get_users.php, hide_messages.php, hide_sent.php,
-login.php, mark_read.php, send_message.php, send_reply.php) with a
-single FastAPI app exposing equivalent routes under /api.
-
-Run with:
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-"""
 import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from app.database import init_pool
 from app.routers import (
     auth,
     hide_messages,
@@ -27,15 +15,16 @@ from app.routers import (
     sent,
     thread,
     users,
+    community_chat,
 )
 
 app = FastAPI(
-    title="Messages API",
-    description="Python/FastAPI conversion of the original PHP messaging endpoints.",
-    version="1.0.0",
+    title="Messages & Community API",
+    description="Extended API with Community Management, Feed, WS chats, Notifications, and Search.",
+    version="2.0.0",
 )
 
-# Equivalent of `header("Access-Control-Allow-Origin: *");` in every PHP file.
+# CORS configuration
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
 allow_origins = ["*"] if allowed_origins_env.strip() == "*" else [
     origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()
@@ -44,31 +33,34 @@ allow_origins = ["*"] if allowed_origins_env.strip() == "*" else [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Mount Static directory to serve uploads (images/videos)
+# Make sure "static" directory exists inside the backend root folder
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+static_dir = os.path.join(backend_dir, "static")
+os.makedirs(static_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-@app.on_event("startup")
-def on_startup():
-    init_pool()
+# Mount new Community & Messaging Module Router
+app.include_router(community_chat.router, prefix="/api", tags=["community_chat"])
 
-
-# Route mounting. Each router corresponds 1:1 to an original PHP file.
-app.include_router(users.router,    prefix="/api", tags=["users"])          # get_users.php
-app.include_router(register.router, prefix="/api", tags=["auth"])           # register new user
-app.include_router(auth.router, prefix="/api", tags=["auth"])            # login.php
-app.include_router(inbox.router, prefix="/api", tags=["inbox"])          # get_inbox.php
-app.include_router(sent.router, prefix="/api", tags=["sent"])            # get_sent.php
-app.include_router(thread.router, prefix="/api", tags=["thread"])        # get_thread.php
-app.include_router(mark_read.router, prefix="/api", tags=["mark_read"])  # mark_read.php
-app.include_router(send_message.router, prefix="/api", tags=["send"])   # send_message.php
-app.include_router(send_reply.router, prefix="/api", tags=["send"])      # send_reply.php
-app.include_router(hide_messages.router, prefix="/api", tags=["hide"])   # hide_messages.php
-app.include_router(hide_sent.router, prefix="/api", tags=["hide"])       # hide_sent.php
-
+# Mount old legacy routers (optional, modified to support SQLAlchemy if needed)
+app.include_router(users.router,    prefix="/api", tags=["users"])
+app.include_router(register.router, prefix="/api", tags=["auth"])
+app.include_router(auth.router,     prefix="/api", tags=["auth"])
+app.include_router(inbox.router,    prefix="/api", tags=["inbox"])
+app.include_router(sent.router,     prefix="/api", tags=["sent"])
+app.include_router(thread.router,   prefix="/api", tags=["thread"])
+app.include_router(mark_read.router, prefix="/api", tags=["mark_read"])
+app.include_router(send_message.router, prefix="/api", tags=["send"])
+app.include_router(send_reply.router,   prefix="/api", tags=["send"])
+app.include_router(hide_messages.router, prefix="/api", tags=["hide"])
+app.include_router(hide_sent.router,     prefix="/api", tags=["hide"])
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "messages-api"}
+    return {"status": "ok", "service": "community-messaging-api"}

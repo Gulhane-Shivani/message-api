@@ -21,6 +21,7 @@ from app.routers import (
     hide_sent,
     inbox,
     mark_read,
+    register,
     send_message,
     send_reply,
     sent,
@@ -55,7 +56,8 @@ def on_startup():
 
 
 # Route mounting. Each router corresponds 1:1 to an original PHP file.
-app.include_router(users.router, prefix="/api", tags=["users"])          # get_users.php
+app.include_router(users.router,    prefix="/api", tags=["users"])          # get_users.php
+app.include_router(register.router, prefix="/api", tags=["auth"])           # register new user
 app.include_router(auth.router, prefix="/api", tags=["auth"])            # login.php
 app.include_router(inbox.router, prefix="/api", tags=["inbox"])          # get_inbox.php
 app.include_router(sent.router, prefix="/api", tags=["sent"])            # get_sent.php

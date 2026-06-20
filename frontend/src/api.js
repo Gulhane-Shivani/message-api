@@ -4,6 +4,7 @@ const json = (res) => { if (!res.ok) throw new Error(res.statusText); return res
 
 export const api = {
   login:        (body)            => fetch(`${BASE}/login`,         { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(json),
+  register:     (body)            => fetch(`${BASE}/register`,      { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(json),
   users:        ()                => fetch(`${BASE}/users`).then(json),
   inbox:        (uid)             => fetch(`${BASE}/inbox?user_id=${uid}`).then(json),
   sent:         (uid)             => fetch(`${BASE}/sent?user_id=${uid}`).then(json),
@@ -25,9 +26,3 @@ export const fmtDate = (s) => {
   if (d.toDateString() === yest.toDateString()) return 'Yesterday';
   return d.toLocaleDateString([],{day:'numeric',month:'short'});
 };
-
-export const DEMO = [
-  { name:'Alice',   email:'alice@example.com',   password:'password123', color:'bg-indigo-500' },
-  { name:'Bob',     email:'bob@example.com',     password:'password456', color:'bg-emerald-500' },
-  { name:'Charlie', email:'charlie@example.com', password:'password789', color:'bg-amber-500' },
-];

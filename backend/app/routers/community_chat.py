@@ -182,6 +182,16 @@ def list_communities(current_user: User = Depends(get_current_user), db: Session
             CommunityMember.user_id == current_user.id
         ).first()
         
+        # If community is private, only show it to members and those who were sent an invite
+        if c.community_type == "private" and not member:
+            invite = db.query(Notification).filter(
+                Notification.user_id == current_user.id,
+                Notification.type == "community_invite",
+                Notification.reference_id == c.id
+            ).first()
+            if not invite:
+                continue
+
         member_count = db.query(CommunityMember).filter(CommunityMember.community_id == c.id).count()
         
         result.append({
@@ -301,6 +311,16 @@ def join_community(community_id: int, current_user: User = Depends(get_current_u
     if cm:
         return {"status": True, "message": "Already a member"}
         
+    # For private communities, check if user has been sent an invite
+    if c.community_type == "private":
+        invite = db.query(Notification).filter(
+            Notification.user_id == current_user.id,
+            Notification.type == "community_invite",
+            Notification.reference_id == community_id
+        ).first()
+        if not invite:
+            raise HTTPException(status_code=403, detail="This is a private community. You must be invited to join.")
+
     member = CommunityMember(community_id=community_id, user_id=current_user.id, role="member")
     db.add(member)
     
@@ -997,6 +1017,9 @@ def list_notifications(current_user: User = Depends(get_current_user), db: Sessi
             msg = "Someone commented on your post"
         elif n.type == "mention":
             msg = "Someone mentioned you in a post"
+        elif n.type == "community_invite":
+            comm_name = db.query(Community.name).filter(Community.id == n.reference_id).scalar() or "a community"
+            msg = f"You have been invited to join the private community: {comm_name}"
             
         result.append({
             "id": n.id,
@@ -1028,9 +1051,29 @@ def search_all(q: str = Query(...), current_user: User = Depends(get_current_use
     ).all()
     
     # 2. Search Communities
-    communities = db.query(Community).filter(
+    raw_communities = db.query(Community).filter(
         or_(Community.name.ilike(f"%{q}%"), Community.description.ilike(f"%{q}%"))
     ).all()
+    
+    communities = []
+    for c in raw_communities:
+        if c.community_type != "private":
+            communities.append(c)
+        else:
+            is_member = db.query(CommunityMember).filter(
+                CommunityMember.community_id == c.id,
+                CommunityMember.user_id == current_user.id
+            ).first() is not None
+            if is_member:
+                communities.append(c)
+            else:
+                has_invite = db.query(Notification).filter(
+                    Notification.user_id == current_user.id,
+                    Notification.type == "community_invite",
+                    Notification.reference_id == c.id
+                ).first() is not None
+                if has_invite:
+                    communities.append(c)
     
     # 3. Search Messages inside conversations current user is member of
     conv_ids = db.query(ConversationMember.conversation_id).filter(ConversationMember.user_id == current_user.id).all()

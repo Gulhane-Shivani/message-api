@@ -94,6 +94,9 @@ export default function NotificationsView() {
             } else if (notif.type === 'mention') {
               Icon = AtSign;
               iconColor = 'bg-rose-50 dark:bg-rose-950/30 text-rose-500';
+            } else if (notif.type === 'community_invite') {
+              Icon = Bell;
+              iconColor = 'bg-amber-50 dark:bg-amber-950/30 text-amber-500';
             }
 
             return (

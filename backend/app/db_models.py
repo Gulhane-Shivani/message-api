@@ -31,6 +31,8 @@ class Community(Base):
     description = Column(Text, nullable=True)
     image_url = Column(String(500), nullable=True)
     creator_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # community_type: 'public' | 'private' | 'restricted'
+    community_type = Column(String(50), default="public", nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships

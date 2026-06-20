@@ -190,6 +190,7 @@ def list_communities(current_user: User = Depends(get_current_user), db: Session
             "description": c.description,
             "image_url": c.image_url,
             "creator_id": c.creator_id,
+            "community_type": c.community_type,
             "member_count": member_count,
             "is_member": member is not None,
             "role": member.role if member else None,
@@ -198,7 +199,19 @@ def list_communities(current_user: User = Depends(get_current_user), db: Session
     return result
 
 @router.post("/communities")
-def create_community(name: str = Query(...), description: Optional[str] = Query(""), image_url: Optional[str] = Query(""), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_community(
+    name: str = Query(...),
+    description: Optional[str] = Query(""),
+    image_url: Optional[str] = Query(""),
+    community_type: Optional[str] = Query("public"),  # public | private | restricted
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Validate community_type
+    valid_types = ["public", "private", "restricted"]
+    if community_type not in valid_types:
+        community_type = "public"
+
     # Check if name unique
     existing = db.query(Community).filter(Community.name == name.strip()).first()
     if existing:
@@ -208,7 +221,8 @@ def create_community(name: str = Query(...), description: Optional[str] = Query(
         name=name.strip(),
         description=description,
         image_url=image_url or "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=300",
-        creator_id=current_user.id
+        creator_id=current_user.id,
+        community_type=community_type
     )
     db.add(c)
     db.commit()
@@ -218,7 +232,7 @@ def create_community(name: str = Query(...), description: Optional[str] = Query(
     cm = CommunityMember(community_id=c.id, user_id=current_user.id, role="admin")
     db.add(cm)
     
-    # Also automatically create a Community Group Chat Conversation for this community!
+    # Automatically create a Community Group Chat Conversation
     conv = Conversation(name=f"{c.name} Lounge", type="group", community_id=c.id)
     db.add(conv)
     db.commit()
@@ -228,7 +242,15 @@ def create_community(name: str = Query(...), description: Optional[str] = Query(
     db.add(ConversationMember(conversation_id=conv.id, user_id=current_user.id))
     db.commit()
     
-    return c
+    return {
+        "id": c.id,
+        "name": c.name,
+        "description": c.description,
+        "image_url": c.image_url,
+        "creator_id": c.creator_id,
+        "community_type": c.community_type,
+        "created_at": c.created_at
+    }
 
 @router.put("/communities/{community_id}")
 def edit_community(community_id: int, name: str = Query(...), description: Optional[str] = Query(""), image_url: Optional[str] = Query(""), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -342,6 +364,133 @@ def list_community_members(community_id: int, db: Session = Depends(get_db)):
                 "joined_at": m.joined_at
             })
     return result
+
+# Admin: Add a member directly to a community
+@router.post("/communities/{community_id}/members/{user_id}")
+def add_community_member(
+    community_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Only admin can add members
+    admin_check = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == current_user.id,
+        CommunityMember.role == "admin"
+    ).first()
+    if not admin_check:
+        raise HTTPException(status_code=403, detail="Only community admin can add members.")
+
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    existing = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == user_id
+    ).first()
+    if existing:
+        return {"status": True, "message": "User is already a member."}
+
+    db.add(CommunityMember(community_id=community_id, user_id=user_id, role="member"))
+
+    # Also add to community group conversation
+    conv = db.query(Conversation).filter(
+        Conversation.community_id == community_id,
+        Conversation.type == "group"
+    ).first()
+    if conv:
+        cv_m = db.query(ConversationMember).filter(
+            ConversationMember.conversation_id == conv.id,
+            ConversationMember.user_id == user_id
+        ).first()
+        if not cv_m:
+            db.add(ConversationMember(conversation_id=conv.id, user_id=user_id))
+    db.commit()
+    return {"status": True, "message": f"{target_user.name} added to community."}
+
+# Admin: Remove a member from a community
+@router.delete("/communities/{community_id}/members/{user_id}")
+def remove_community_member(
+    community_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Only admin can remove members (cannot remove creator)
+    admin_check = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == current_user.id,
+        CommunityMember.role == "admin"
+    ).first()
+    if not admin_check:
+        raise HTTPException(status_code=403, detail="Only community admin can remove members.")
+
+    community = db.query(Community).filter(Community.id == community_id).first()
+    if community and community.creator_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot remove the community creator.")
+
+    cm = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == user_id
+    ).first()
+    if not cm:
+        raise HTTPException(status_code=404, detail="User is not a member.")
+
+    db.delete(cm)
+
+    # Also remove from community group conversation
+    conv = db.query(Conversation).filter(
+        Conversation.community_id == community_id,
+        Conversation.type == "group"
+    ).first()
+    if conv:
+        cv_m = db.query(ConversationMember).filter(
+            ConversationMember.conversation_id == conv.id,
+            ConversationMember.user_id == user_id
+        ).first()
+        if cv_m:
+            db.delete(cv_m)
+    db.commit()
+    return {"status": True, "message": "Member removed from community."}
+
+# Admin: Send an invite notification to a user
+@router.post("/communities/{community_id}/invite/{user_id}")
+def invite_community_member(
+    community_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    admin_check = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == current_user.id,
+        CommunityMember.role == "admin"
+    ).first()
+    if not admin_check:
+        raise HTTPException(status_code=403, detail="Only community admin can send invites.")
+
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    existing = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == user_id
+    ).first()
+    if existing:
+        return {"status": True, "message": "User is already a member."}
+
+    # Create an invite notification for the user
+    notif = Notification(
+        user_id=user_id,
+        type="community_invite",
+        reference_id=community_id
+    )
+    db.add(notif)
+    db.commit()
+    return {"status": True, "message": f"Invite sent to {target_user.name}."}
 
 # --- COMMUNITY FEED (POSTS) ---
 @router.get("/communities/{community_id}/posts")
@@ -718,7 +867,7 @@ def get_messages(conversation_id: int, current_user: User = Depends(get_current_
     return result
 
 @router.post("/conversations/{conversation_id}/messages")
-def send_message(
+async def send_message(
     conversation_id: int,
     content: str = Query(...),
     message_type: str = Query("text"), # text, image, video
@@ -751,7 +900,7 @@ def send_message(
     ).all()
     member_ids = [m[0] for m in members]
     
-    # Broadcast message through Websockets
+    # Broadcast message through WebSockets
     import asyncio
     ws_payload = {
         "type": "new_message",
@@ -769,13 +918,16 @@ def send_message(
             "created_at": msg.created_at.isoformat()
         }
     }
-    
-    # Schedule WS broadcast on running event loop
-    loop = asyncio.get_event_loop()
-    asyncio.run_coroutine_threadsafe(
-        manager.broadcast_to_conversation(ws_payload, member_ids),
-        loop
-    )
+
+    # Use ensure_future on the running event loop (works inside FastAPI's async context)
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(manager.broadcast_to_conversation(ws_payload, member_ids))
+    except RuntimeError:
+        # Fallback: no running loop (should not happen in uvicorn context)
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(manager.broadcast_to_conversation(ws_payload, member_ids))
+        loop.close()
     
     # Create notification for others
     for m_id in member_ids:

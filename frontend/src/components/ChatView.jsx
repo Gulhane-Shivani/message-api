@@ -36,6 +36,13 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  // Keep a ref to activeConv so the WS onmessage handler always sees the latest value
+  const activeConvRef = useRef(null);
+
+  // Sync ref whenever activeConv changes
+  useEffect(() => {
+    activeConvRef.current = activeConv;
+  }, [activeConv]);
 
   // 1. Fetch conversations list on mount
   useEffect(() => {
@@ -50,11 +57,10 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
     }
   }, [initialConversation]);
 
-  // 2. Establish WebSocket connection
+  // 2. Establish WebSocket connection ONCE per user login (not on every activeConv change)
   useEffect(() => {
     if (!currentUser) return;
     
-    // Connect to WebSocket
     const wsUrl = `${WS_BASE_URL}/${currentUser.id}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -65,53 +71,47 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      const currentActiveConv = activeConvRef.current; // always up-to-date
       
       if (data.type === 'new_message') {
-        // If message belongs to active conversation, append it
-        if (activeConv && data.conversation_id === activeConv.id) {
+        // Skip messages sent by self — already shown via optimistic update
+        if (data.message.sender_id === currentUser.id) {
+          loadConversations();
+          return;
+        }
+        if (currentActiveConv && data.conversation_id === currentActiveConv.id) {
           setMessages(prev => [...prev, data.message]);
           scrollToBottom();
-          // Send read receipt
-          sendReadReceipt(activeConv.id, data.message.id);
+          sendReadReceipt(currentActiveConv.id, data.message.id);
         }
-        // Refresh conversations list to show last message
         loadConversations();
       } 
       else if (data.type === 'typing') {
         const { conversation_id, user_id, is_typing } = data;
         setOtherUserTyping(prev => ({
           ...prev,
-          [conversation_id]: {
-            ...prev[conversation_id],
-            [user_id]: is_typing
-          }
+          [conversation_id]: { ...prev[conversation_id], [user_id]: is_typing }
         }));
       } 
       else if (data.type === 'online_status') {
         const { user_id, status } = data;
-        setOnlineUsers(prev => ({
-          ...prev,
-          [user_id]: status
-        }));
-        // Refresh conversations (updates online indicator)
+        setOnlineUsers(prev => ({ ...prev, [user_id]: status }));
         loadConversations();
       }
       else if (data.type === 'read_receipt') {
         const { conversation_id, message_id } = data;
-        if (activeConv && conversation_id === activeConv.id) {
+        if (currentActiveConv && conversation_id === currentActiveConv.id) {
           setMessages(prev => prev.map(m => m.id === message_id ? { ...m, is_read: true } : m));
         }
       }
     };
 
-    ws.onclose = () => {
-      console.log('WS Connection Closed');
-    };
+    ws.onclose = () => console.log('WS Connection Closed');
 
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, [currentUser, activeConv]);
+  }, [currentUser]); // Only reconnect when user changes, not on every conv select
 
   // Scroll to bottom helper
   const scrollToBottom = () => {
@@ -205,29 +205,50 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
   // --- Message Actions ---
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessageText.trim() || !activeConv) return;
-    try {
-      // Send message via API
-      await api.sendMessage(activeConv.id, newMessageText.trim(), 'text');
-      setNewMessageText('');
-      
-      // Stop typing
-      if (isTyping) {
-        setIsTyping(false);
-        wsRef.current.send(JSON.stringify({
-          type: 'typing',
-          conversation_id: activeConv.id,
-          is_typing: false
-        }));
+    const text = newMessageText.trim();
+    if (!text || !activeConv) return;
+
+    // Clear input immediately for snappy UX
+    setNewMessageText('');
+
+    // Optimistically append so message appears instantly for the sender
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg = {
+      id: tempId,
+      sender_id: currentUser.id,
+      sender_name: currentUser.name,
+      sender_avatar: currentUser.avatar_url,
+      content: text,
+      message_type: 'text',
+      file_url: null,
+      is_read: false,
+      is_pinned: false,
+      created_at: new Date().toISOString(),
+      reactions: []
+    };
+    setMessages(prev => [...prev, tempMsg]);
+    scrollToBottom();
+
+    // Stop typing indicator
+    if (isTyping) {
+      setIsTyping(false);
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'typing', conversation_id: activeConv.id, is_typing: false }));
       }
-      
-      // Reload active messages & conversations list
-      const updated = await api.getMessages(activeConv.id);
-      setMessages(updated);
-      scrollToBottom();
+    }
+
+    try {
+      const msg = await api.sendMessage(activeConv.id, text, 'text');
+      // Replace temp with real server message (gets confirmed ID)
+      setMessages(prev => prev.map(m => m.id === tempId
+        ? { ...tempMsg, id: msg.id ?? tempId, created_at: msg.created_at ?? tempMsg.created_at }
+        : m
+      ));
       loadConversations();
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
+      // Roll back optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== tempId));
     }
   };
 

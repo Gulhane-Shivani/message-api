@@ -45,14 +45,17 @@ export const api = {
 
   // Community Management
   getCommunities: () => client.get('/communities'),
-  createCommunity: (name, description = '', imageUrl = '') => 
-    client.post(`/communities?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&image_url=${encodeURIComponent(imageUrl)}`),
+  createCommunity: (name, description = '', imageUrl = '', communityType = 'public') => 
+    client.post(`/communities?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&image_url=${encodeURIComponent(imageUrl)}&community_type=${communityType}`),
   editCommunity: (id, name, description = '', imageUrl = '') => 
     client.put(`/communities/${id}?name=${encodeURIComponent(name)}&description=${encodeURIComponent(description)}&image_url=${encodeURIComponent(imageUrl)}`),
   deleteCommunity: (id) => client.delete(`/communities/${id}`),
   joinCommunity: (id) => client.post(`/communities/${id}/join`),
   leaveCommunity: (id) => client.post(`/communities/${id}/leave`),
   getCommunityMembers: (id) => client.get(`/communities/${id}/members`),
+  addCommunityMember: (communityId, userId) => client.post(`/communities/${communityId}/members/${userId}`),
+  removeCommunityMember: (communityId, userId) => client.delete(`/communities/${communityId}/members/${userId}`),
+  inviteCommunityMember: (communityId, userId) => client.post(`/communities/${communityId}/invite/${userId}`),
 
   // Community Feed
   getPosts: (communityId) => client.get(`/communities/${communityId}/posts`),

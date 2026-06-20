@@ -14,12 +14,17 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
   // Modals / Dialogs
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
   const [cName, setCName] = useState('');
   const [cDesc, setCDesc] = useState('');
   const [cImage, setCImage] = useState('');
+  const [cType, setCType] = useState('public'); // 'public' | 'private' | 'restricted'
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editImage, setEditImage] = useState('');
+  // Member management
+  const [allUsers, setAllUsers] = useState([]);
+  const [memberActionMsg, setMemberActionMsg] = useState('');
 
   // Feed Inputs
   const [postContent, setPostContent] = useState('');
@@ -216,8 +221,8 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
     setError('');
     if (!cName.trim()) return;
     try {
-      const res = await api.createCommunity(cName.trim(), cDesc.trim(), cImage.trim());
-      setCName(''); setCDesc(''); setCImage('');
+      await api.createCommunity(cName.trim(), cDesc.trim(), cImage.trim(), cType);
+      setCName(''); setCDesc(''); setCImage(''); setCType('public');
       setShowCreateModal(false);
       setSuccess('Community created successfully!');
       loadCommunities();
@@ -249,18 +254,50 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
   };
 
   const handleDeleteCommunity = async () => {
-    if (!window.confirm("Are you absolutely sure you want to delete this community? All posts, chats, and comments will be permanently deleted!")) return;
+    if (!window.confirm("Are you absolutely sure you want to delete this community?")) return;
     try {
       await api.deleteCommunity(activeComm.id);
-      setActiveComm(null);
-      setPosts([]);
-      setMembers([]);
-      setSuccess('Community deleted successfully.');
-      loadCommunities();
+      setActiveComm(null); setPosts([]); setMembers([]);
+      setSuccess('Community deleted.'); loadCommunities();
       setTimeout(() => setSuccess(''), 3000);
-    } catch (e) {
-      setError(e.message);
-    }
+    } catch (e) { setError(e.message); }
+  };
+
+  const handleOpenMembersModal = async () => {
+    try {
+      const data = await api.getUsers('');
+      setAllUsers(data);
+      setShowMembersModal(true);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleAddMember = async (userId) => {
+    try {
+      const res = await api.addCommunityMember(activeComm.id, userId);
+      setMemberActionMsg(res.message);
+      const updated = await api.getCommunityMembers(activeComm.id);
+      setMembers(updated);
+      setTimeout(() => setMemberActionMsg(''), 3000);
+    } catch (e) { setMemberActionMsg(e.message); }
+  };
+
+  const handleRemoveMember = async (userId) => {
+    if (!window.confirm('Remove this member?')) return;
+    try {
+      const res = await api.removeCommunityMember(activeComm.id, userId);
+      setMemberActionMsg(res.message);
+      const updated = await api.getCommunityMembers(activeComm.id);
+      setMembers(updated);
+      setTimeout(() => setMemberActionMsg(''), 3000);
+    } catch (e) { setMemberActionMsg(e.message); }
+  };
+
+  const handleInviteMember = async (userId) => {
+    try {
+      const res = await api.inviteCommunityMember(activeComm.id, userId);
+      setMemberActionMsg(res.message);
+      setTimeout(() => setMemberActionMsg(''), 3000);
+    } catch (e) { setMemberActionMsg(e.message); }
   };
 
   return (
@@ -301,11 +338,18 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
                 className="w-11 h-11 rounded-lg object-cover bg-slate-100"
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1">
                   <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{comm.name}</h4>
-                  {comm.creator_id === currentUser.id && (
-                    <span className="text-[9px] font-semibold bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded">Admin</span>
-                  )}
+                  <div className="flex gap-1 flex-shrink-0">
+                    {comm.creator_id === currentUser.id && (
+                      <span className="text-[9px] font-semibold bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded">Admin</span>
+                    )}
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                      comm.community_type === 'private' ? 'bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400' :
+                      comm.community_type === 'restricted' ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400' :
+                      'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                    }`}>{comm.community_type || 'public'}</span>
+                  </div>
                 </div>
                 <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">{comm.description}</p>
                 <div className="flex items-center justify-between mt-2">
@@ -625,25 +669,43 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
       {/* 3. Right Column: Community Info / Members */}
       {activeComm && activeComm.is_member && (
         <div className="w-64 flex-shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 p-4 flex flex-col overflow-y-auto">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider mb-4">Members</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Members</h3>
+            {activeComm.role === 'admin' && (
+              <button
+                onClick={handleOpenMembersModal}
+                title="Add / Invite Members"
+                className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors"
+              >
+                <Plus size={14} />
+              </button>
+            )}
+          </div>
+          {memberActionMsg && (
+            <div className="mb-3 p-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 text-[10px] rounded-lg">{memberActionMsg}</div>
+          )}
           <div className="space-y-3">
             {members.map(member => (
-              <div key={member.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img 
-                    src={member.avatar_url || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"} 
-                    alt={member.name} 
-                    className="w-8 h-8 rounded-full object-cover"
+              <div key={member.id} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <img
+                    src={member.avatar_url || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}
+                    alt={member.name}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                   />
-                  <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[120px]">{member.name}</p>
-                    <p className="text-[9px] text-slate-400">Joined {fmtDate(member.joined_at)}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate max-w-[90px]">{member.name}</p>
+                    <p className="text-[9px] text-slate-400">{member.role === 'admin' ? '👑 Admin' : 'Member'}</p>
                   </div>
                 </div>
-                {member.role === 'admin' ? (
-                  <span className="text-[9px] font-bold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-200/50">Admin</span>
-                ) : (
-                  <span className="text-[9px] text-slate-400 font-semibold uppercase">Member</span>
+                {activeComm.role === 'admin' && member.id !== currentUser.id && (
+                  <button
+                    onClick={() => handleRemoveMember(member.id)}
+                    title="Remove member"
+                    className="p-1 rounded text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors flex-shrink-0"
+                  >
+                    <X size={12} />
+                  </button>
                 )}
               </div>
             ))}
@@ -678,7 +740,7 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
                   placeholder="Tell people what this community is about..."
                   value={cDesc} onChange={e => setCDesc(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white resize-none"
-                  rows={3}
+                  rows={2}
                 />
               </div>
               <div>
@@ -689,6 +751,20 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
                   value={cImage} onChange={e => setCImage(e.target.value)}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Community Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[{id:'public',label:'🌐 Public',desc:'Anyone can join'},{id:'restricted',label:'🔒 Restricted',desc:'Join by request'},{id:'private',label:'🔐 Private',desc:'Invite only'}].map(t => (
+                    <button key={t.id} type="button" onClick={() => setCType(t.id)}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        cType === t.id ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900'
+                      }`}>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{t.label}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{t.desc}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
               {error && (
                 <div className="p-2.5 bg-rose-50 dark:bg-rose-950/20 text-rose-500 text-xs rounded-xl flex items-center gap-2">
@@ -757,6 +833,48 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
                 Save Changes
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD/INVITE MEMBERS MODAL */}
+      {showMembersModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-950 rounded-2xl border border-slate-200 dark:border-slate-850 max-w-md w-full p-6 shadow-xl relative animate-slide-up">
+            <button onClick={() => setShowMembersModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+              <X size={18} />
+            </button>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white mb-1">Manage Members</h2>
+            <p className="text-xs text-slate-400 mb-4">Add or invite users to <span className="font-bold text-indigo-500">{activeComm?.name}</span></p>
+            {memberActionMsg && (
+              <div className="mb-3 p-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 text-xs rounded-xl">{memberActionMsg}</div>
+            )}
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {allUsers.filter(u => !members.some(m => m.id === u.id)).map(u => (
+                <div key={u.id} className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900">
+                  <div className="flex items-center gap-2.5">
+                    <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{u.name}</p>
+                      <p className="text-[10px] text-slate-400">{u.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => handleAddMember(u.id)}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold hover:bg-indigo-700 transition-colors">
+                      Add
+                    </button>
+                    <button onClick={() => handleInviteMember(u.id)}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-bold hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+                      Invite
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {allUsers.filter(u => !members.some(m => m.id === u.id)).length === 0 && (
+                <p className="text-center text-xs text-slate-400 py-8">All users are already members.</p>
+              )}
+            </div>
           </div>
         </div>
       )}

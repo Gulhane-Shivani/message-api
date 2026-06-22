@@ -112,6 +112,10 @@ export const api = {
     return client.post(url);
   },
 
+  // Student: Browse & Enroll Courses
+  getCourses: () => client.get('/courses'),
+  enrollCourse: (courseId) => client.post(`/courses/${courseId}/enroll`),
+
   // File Upload
   uploadFile: (file) => {
     const formData = new FormData();

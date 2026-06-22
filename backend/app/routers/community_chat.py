@@ -1409,3 +1409,83 @@ def create_admin_course(
         "community_id": course.community_id,
         "community_name": c.name
     }
+
+# --- STUDENT: Browse & Enroll Courses ---
+@router.get("/courses")
+def list_courses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all active batch courses with enrollment status for the current user."""
+    courses = db.query(BatchCourse).filter(BatchCourse.status == "active").order_by(BatchCourse.created_at.desc()).all()
+    result = []
+    for c in courses:
+        # Check if user is already enrolled (member of linked community)
+        is_enrolled = False
+        comm = None
+        if c.community_id:
+            comm = db.query(Community).filter(Community.id == c.community_id).first()
+            is_enrolled = db.query(CommunityMember).filter(
+                CommunityMember.community_id == c.community_id,
+                CommunityMember.user_id == current_user.id
+            ).first() is not None
+
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+            "batch_code": c.batch_code,
+            "start_date": c.start_date.isoformat() if c.start_date else None,
+            "end_date": c.end_date.isoformat() if c.end_date else None,
+            "image_url": c.image_url,
+            "status": c.status,
+            "community_id": c.community_id,
+            "community_name": comm.name if comm else None,
+            "is_enrolled": is_enrolled,
+        })
+    return result
+
+@router.post("/courses/{course_id}/enroll")
+def enroll_course(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Enroll the current user in a batch course — adds them to the linked community and its default channels."""
+    course = db.query(BatchCourse).filter(BatchCourse.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
+    if not course.community_id:
+        raise HTTPException(status_code=400, detail="This course has no linked community yet.")
+
+    # Add to community if not already a member
+    existing_cm = db.query(CommunityMember).filter(
+        CommunityMember.community_id == course.community_id,
+        CommunityMember.user_id == current_user.id
+    ).first()
+    if not existing_cm:
+        db.add(CommunityMember(community_id=course.community_id, user_id=current_user.id, role="member"))
+        db.commit()
+
+    # Automatically add them to ALL group conversations in the community (Lounge, Announcements, etc.)
+    group_convs = db.query(Conversation).filter(
+        Conversation.community_id == course.community_id,
+        Conversation.type == "group"
+    ).all()
+    for conv in group_convs:
+        already_in = db.query(ConversationMember).filter(
+            ConversationMember.conversation_id == conv.id,
+            ConversationMember.user_id == current_user.id
+        ).first()
+        if not already_in:
+            db.add(ConversationMember(conversation_id=conv.id, user_id=current_user.id))
+    db.commit()
+
+    comm = db.query(Community).filter(Community.id == course.community_id).first()
+    return {
+        "status": True,
+        "message": f"Successfully enrolled in {course.name}!",
+        "community_id": course.community_id,
+        "community_name": comm.name if comm else None
+    }
+

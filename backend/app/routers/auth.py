@@ -32,6 +32,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db_session)):
             "name": user.name,
             "email": user.email,
             "avatar_url": user.avatar_url,
-            "online_status": user.online_status
+            "online_status": user.online_status,
+            "is_admin": user.is_admin or False
         }
     }

@@ -1,4 +1,4 @@
-import { Users, MessageCircle, Bell, Search, Settings, LogOut } from 'lucide-react';
+import { Users, MessageCircle, Bell, Search, Settings, LogOut, GraduationCap } from 'lucide-react';
 
 export default function Navbar({ user, tab, setTab, notificationCount, chatUnreadCount, onLogout }) {
   return (
@@ -17,10 +17,15 @@ export default function Navbar({ user, tab, setTab, notificationCount, chatUnrea
       {/* Middle: Navigation Links */}
       <div className="flex items-center gap-1">
         <NavBtn label="Communities" icon={<Users size={15} />} active={tab === 'communities'} onClick={() => setTab('communities')} />
+        {!user.is_admin && (
+          <NavBtn label="Courses" icon={<GraduationCap size={15} />} active={tab === 'courses'} onClick={() => setTab('courses')} />
+        )}
         <NavBtn label="Chats" icon={<MessageCircle size={15} />} active={tab === 'chat'} onClick={() => setTab('chat')} badge={chatUnreadCount} badgeColor="bg-emerald-500" />
         <NavBtn label="Notifications" icon={<Bell size={15} />} active={tab === 'notifications'} onClick={() => setTab('notifications')} badge={notificationCount} badgeColor="bg-rose-500" pulse />
         <NavBtn label="Search" icon={<Search size={15} />} active={tab === 'search'} onClick={() => setTab('search')} />
-        <NavBtn label="Admin Portal" icon={<Settings size={15} />} active={tab === 'admin'} onClick={() => setTab('admin')} />
+        {user.is_admin && (
+          <NavBtn label="Admin Portal" icon={<Settings size={15} />} active={tab === 'admin'} onClick={() => setTab('admin')} />
+        )}
       </div>
 
       {/* Right: Profile & Logout */}

@@ -11,6 +11,7 @@ class User(Base):
     password = Column(String(255), nullable=False)
     avatar_url = Column(String(500), nullable=True)
     online_status = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)
     last_seen = Column(DateTime, default=datetime.datetime.utcnow)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 

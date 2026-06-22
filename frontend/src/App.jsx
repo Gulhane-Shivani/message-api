@@ -7,6 +7,7 @@ import ChatView from './components/ChatView.jsx';
 import NotificationsView from './components/NotificationsView.jsx';
 import SearchView from './components/SearchView.jsx';
 import AdminView from './components/AdminView.jsx';
+import CoursesView from './components/CoursesView.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -116,6 +117,12 @@ export default function App() {
         )}
         {tab === 'admin' && (
           <AdminView
+            currentUser={user}
+            onViewCommunity={handleViewCommunityFromSearch}
+          />
+        )}
+        {tab === 'courses' && (
+          <CoursesView
             currentUser={user}
             onViewCommunity={handleViewCommunityFromSearch}
           />

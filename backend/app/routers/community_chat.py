@@ -10,7 +10,7 @@ from sqlalchemy import or_, and_, func
 from app.database import get_db_session as get_db
 from app.db_models import (
     User, Community, CommunityMember, CommunityPost, PostLike, PostComment,
-    Conversation, ConversationMember, Message, MessageReaction, Notification
+    Conversation, ConversationMember, Message, MessageReaction, Notification, BatchCourse
 )
 from app.auth_utils import get_current_user
 
@@ -1290,4 +1290,122 @@ def search_all(q: str = Query(...), current_user: User = Depends(get_current_use
             "created_at": m.created_at,
             "sender_id": m.sender_id
         } for m in messages]
+    }
+
+# --- ADMIN BATCH COURSES ---
+@router.get("/admin/courses")
+def list_admin_courses(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    courses = db.query(BatchCourse).order_by(BatchCourse.created_at.desc()).all()
+    result = []
+    for c in courses:
+        comm = db.query(Community).filter(Community.id == c.community_id).first()
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "description": c.description,
+            "batch_code": c.batch_code,
+            "start_date": c.start_date.isoformat() if c.start_date else None,
+            "end_date": c.end_date.isoformat() if c.end_date else None,
+            "image_url": c.image_url,
+            "status": c.status,
+            "creator_id": c.creator_id,
+            "community_id": c.community_id,
+            "community_name": comm.name if comm else None,
+            "created_at": c.created_at
+        })
+    return result
+
+@router.post("/admin/courses")
+def create_admin_course(
+    name: str = Query(...),
+    description: Optional[str] = Query(""),
+    batch_code: Optional[str] = Query(""),
+    start_date: Optional[str] = Query(None), # YYYY-MM-DD
+    end_date: Optional[str] = Query(None), # YYYY-MM-DD
+    image_url: Optional[str] = Query(""),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Parse dates if provided
+    start_dt = None
+    end_dt = None
+    if start_date:
+        try:
+            start_dt = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+    if end_date:
+        try:
+            end_dt = datetime.datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+            
+    # Check if community name is unique
+    comm_name = name.strip()
+    existing_comm = db.query(Community).filter(Community.name == comm_name).first()
+    if existing_comm:
+        if batch_code:
+            comm_name = f"{comm_name} ({batch_code.strip()})"
+        else:
+            import time
+            comm_name = f"{comm_name} {int(time.time())}"
+            
+    final_existing = db.query(Community).filter(Community.name == comm_name).first()
+    if final_existing:
+        raise HTTPException(status_code=400, detail="Community name already taken.")
+        
+    # Create linked Community
+    c = Community(
+        name=comm_name,
+        description=description or f"Official community for {name}",
+        image_url=image_url or "https://images.unsplash.com/photo-1518770660439-4636190af475?w=300",
+        creator_id=current_user.id,
+        community_type="public"
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    
+    # Add creator as admin
+    cm = CommunityMember(community_id=c.id, user_id=current_user.id, role="admin")
+    db.add(cm)
+    
+    # Automatically create Lounge and Announcements conversations
+    lounge = Conversation(name="Lounge", type="group", community_id=c.id)
+    ann = Conversation(name="Announcements", type="group", community_id=c.id)
+    db.add(lounge)
+    db.add(ann)
+    db.commit()
+    db.refresh(lounge)
+    db.refresh(ann)
+    
+    # Add creator to these group conversations
+    db.add(ConversationMember(conversation_id=lounge.id, user_id=current_user.id))
+    db.add(ConversationMember(conversation_id=ann.id, user_id=current_user.id))
+    db.commit()
+    
+    # Create BatchCourse
+    course = BatchCourse(
+        name=name.strip(),
+        description=description,
+        batch_code=batch_code.strip() if batch_code else None,
+        start_date=start_dt,
+        end_date=end_dt,
+        image_url=c.image_url,
+        creator_id=current_user.id,
+        community_id=c.id
+    )
+    db.add(course)
+    db.commit()
+    db.refresh(course)
+    
+    return {
+        "course_id": course.id,
+        "name": course.name,
+        "batch_code": course.batch_code,
+        "community_id": course.community_id,
+        "community_name": c.name
     }

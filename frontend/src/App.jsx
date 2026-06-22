@@ -6,6 +6,7 @@ import CommunitiesView from './components/CommunitiesView.jsx';
 import ChatView from './components/ChatView.jsx';
 import NotificationsView from './components/NotificationsView.jsx';
 import SearchView from './components/SearchView.jsx';
+import AdminView from './components/AdminView.jsx';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -110,6 +111,12 @@ export default function App() {
         {tab === 'search' && (
           <SearchView
             onStartChat={handleStartChatFromSearch}
+            onViewCommunity={handleViewCommunityFromSearch}
+          />
+        )}
+        {tab === 'admin' && (
+          <AdminView
+            currentUser={user}
             onViewCommunity={handleViewCommunityFromSearch}
           />
         )}

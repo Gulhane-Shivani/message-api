@@ -158,3 +158,21 @@ class Notification(Base):
 
     # Relationships
     user = relationship("User", back_populates="notifications")
+
+class BatchCourse(Base):
+    __tablename__ = "batch_courses"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    batch_code = Column(String(100), nullable=True)     # e.g. "BATCH-2026-A"
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    image_url = Column(String(500), nullable=True)
+    status = Column(String(50), default="active")       # 'active' | 'completed' | 'archived'
+    creator_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    community_id = Column(Integer, ForeignKey("communities.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    creator = relationship("User")
+    community = relationship("Community")

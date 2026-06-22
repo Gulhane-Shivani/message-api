@@ -101,6 +101,17 @@ export const api = {
   // Search
   search: (q) => client.get(`/search?q=${encodeURIComponent(q)}`),
 
+  // Admin Batch Courses
+  getAdminCourses: () => client.get('/admin/courses'),
+  createAdminCourse: (name, description = '', batchCode = '', startDate = '', endDate = '') => {
+    let url = `/admin/courses?name=${encodeURIComponent(name)}`;
+    if (description) url += `&description=${encodeURIComponent(description)}`;
+    if (batchCode) url += `&batch_code=${encodeURIComponent(batchCode)}`;
+    if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`;
+    if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`;
+    return client.post(url);
+  },
+
   // File Upload
   uploadFile: (file) => {
     const formData = new FormData();

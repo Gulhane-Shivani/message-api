@@ -1,4 +1,4 @@
-import { Users, MessageCircle, Bell, Search, LogOut } from 'lucide-react';
+import { Users, MessageCircle, Bell, Search, LogOut, Settings } from 'lucide-react';
 
 export default function Sidebar({ user, tab, setTab, notificationCount, chatUnreadCount, onLogout }) {
   return (
@@ -79,6 +79,20 @@ export default function Sidebar({ user, tab, setTab, notificationCount, chatUnre
           <span className="flex items-center gap-3">
             <Search size={18} />
             <span>Search Database</span>
+          </span>
+        </button>
+
+        <button
+          onClick={() => setTab('admin')}
+          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-150 text-sm font-semibold
+            ${tab === 'admin'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+        >
+          <span className="flex items-center gap-3">
+            <Settings size={18} />
+            <span>Admin Portal</span>
           </span>
         </button>
       </nav>

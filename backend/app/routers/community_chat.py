@@ -450,12 +450,20 @@ def list_community_groups(
                 Conversation.type == "group"
             ).all()
         
-    return [{
-        "id": c.id,
-        "name": c.name,
-        "type": c.type,
-        "created_at": c.created_at
-    } for c in convs]
+    result = []
+    for c in convs:
+        is_member = db.query(ConversationMember).filter(
+            ConversationMember.conversation_id == c.id,
+            ConversationMember.user_id == current_user.id
+        ).first() is not None
+        result.append({
+            "id": c.id,
+            "name": c.name,
+            "type": c.type,
+            "is_member": is_member,
+            "created_at": c.created_at
+        })
+    return result
 
 @router.post("/communities/{community_id}/groups")
 def create_community_group(
@@ -479,18 +487,49 @@ def create_community_group(
     db.commit()
     db.refresh(conv)
     
-    # Add all existing community members to this group conversation
-    members = db.query(CommunityMember.user_id).filter(CommunityMember.community_id == community_id).all()
-    for m in members:
-        db.add(ConversationMember(conversation_id=conv.id, user_id=m[0]))
+    # Only add the creator to this group conversation
+    db.add(ConversationMember(conversation_id=conv.id, user_id=current_user.id))
     db.commit()
     
     return {
         "id": conv.id,
         "name": conv.name,
         "type": conv.type,
+        "is_member": True,
         "created_at": conv.created_at
     }
+
+# Join a community group chat conversation
+@router.post("/conversations/{conversation_id}/join")
+def join_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Verify the conversation exists and belongs to a community the user is a member of
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+        
+    if conv.community_id:
+        # Check if user is a community member
+        comm_member = db.query(CommunityMember).filter(
+            CommunityMember.community_id == conv.community_id,
+            CommunityMember.user_id == current_user.id
+        ).first()
+        if not comm_member:
+            raise HTTPException(status_code=403, detail="You must be a member of the community to join this group.")
+            
+    # Check if already a conversation member
+    existing = db.query(ConversationMember).filter(
+        ConversationMember.conversation_id == conversation_id,
+        ConversationMember.user_id == current_user.id
+    ).first()
+    if not existing:
+        db.add(ConversationMember(conversation_id=conversation_id, user_id=current_user.id))
+        db.commit()
+        
+    return {"status": True, "message": "Joined group chat successfully."}
 
 # Admin: Add a member directly to a community
 @router.post("/communities/{community_id}/members/{user_id}")

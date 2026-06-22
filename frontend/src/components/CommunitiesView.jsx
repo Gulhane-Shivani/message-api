@@ -327,6 +327,17 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
     }
   };
 
+  const handleJoinGroup = async (group) => {
+    try {
+      await api.joinConversation(group.id);
+      const updatedGroups = await api.getCommunityGroups(activeComm.id);
+      setGroups(updatedGroups);
+    } catch (e) {
+      console.error(e);
+      setError(e.message || 'Failed to join group');
+    }
+  };
+
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -730,16 +741,35 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
               {groups.map(g => (
                 <div 
                   key={g.id}
-                  onClick={() => handleSelectGroup(g)}
-                  className="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer flex items-center justify-between border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all group"
+                  onClick={() => g.is_member && handleSelectGroup(g)}
+                  className={`p-2 rounded-lg flex items-center justify-between border border-transparent transition-all
+                    ${g.is_member 
+                      ? 'hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer hover:border-slate-100 dark:hover:border-slate-800' 
+                      : 'bg-slate-50/30 dark:bg-slate-900/10 opacity-80'
+                    }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-slate-400 font-medium">#</span>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{g.name}</span>
+                    <span className={`text-xs font-bold truncate ${g.is_member ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>
+                      {g.name}
+                    </span>
                   </div>
-                  {g.name.toLowerCase().includes('announcement') && (
-                    <span className="text-[9px] bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 px-1 rounded font-bold flex-shrink-0">📢</span>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {g.name.toLowerCase().includes('announcement') && (
+                      <span className="text-[9px] bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold">📢</span>
+                    )}
+                    {!g.is_member && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleJoinGroup(g);
+                        }}
+                        className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold transition-all shadow shadow-indigo-600/10"
+                      >
+                        Join
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

@@ -84,6 +84,7 @@ export const api = {
     if (communityId) url += `&community_id=${communityId}`;
     return client.post(url);
   },
+  joinConversation: (conversationId) => client.post(`/conversations/${conversationId}/join`),
   getMessages: (conversationId) => client.get(`/conversations/${conversationId}/messages`),
   sendMessage: (conversationId, content, messageType = 'text', fileUrl = '') => {
     let url = `/conversations/${conversationId}/messages?content=${encodeURIComponent(content)}&message_type=${messageType}`;

@@ -73,7 +73,8 @@ export default function AdminView({ currentUser, onViewCommunity }) {
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Header */}
-      <header className="h-16 flex-shrink-0 flex items-center justify-between px-6 bg-white dark:bg-gray-950 border-b border-slate-200 dark:border-slate-800">
+      <header className="h-16 flex-shrink-0 bg-white dark:bg-gray-950 border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto h-full flex items-center justify-between px-4 sm:px-8 lg:px-12">
         <div>
           <h1 className="text-lg font-extrabold text-slate-850 dark:text-white flex items-center gap-2">
             <Shield size={20} className="text-indigo-600" />
@@ -89,10 +90,12 @@ export default function AdminView({ currentUser, onViewCommunity }) {
           <Plus size={16} />
           Create Batch Course
         </button>
+        </div>
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8">
         {error && (
           <div className="mb-4 p-3.5 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-450 text-xs rounded-xl flex items-center gap-2.5 border border-rose-100 dark:border-rose-900/30">
             <AlertCircle size={16} />
@@ -179,6 +182,7 @@ export default function AdminView({ currentUser, onViewCommunity }) {
             ))}
           </div>
         )}
+        </div>
       </div>
 
       {/* Add Course Modal */}

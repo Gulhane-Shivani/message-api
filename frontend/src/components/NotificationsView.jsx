@@ -46,8 +46,9 @@ export default function NotificationsView() {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-gray-900 p-6">
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-gray-900">
       {/* Header */}
+      <div className="max-w-4xl mx-auto w-full px-4 sm:px-8 lg:px-12 pt-8 pb-4">
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -64,6 +65,7 @@ export default function NotificationsView() {
           <span>Mark all as read</span>
         </button>
       </div>
+      </div>
 
       {/* Content */}
       {loading ? (
@@ -77,7 +79,8 @@ export default function NotificationsView() {
           <p className="text-xs text-slate-400 mt-1 max-w-xs">You have no active notifications. We will alert you when you receive new posts or comments.</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto space-y-3 max-w-3xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto w-full">
+          <div className="max-w-4xl mx-auto w-full px-4 sm:px-8 lg:px-12 space-y-3">
           {notifications.map(notif => {
             let Icon = Bell;
             let iconColor = 'bg-slate-100 dark:bg-slate-900 text-slate-500';
@@ -130,6 +133,7 @@ export default function NotificationsView() {
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>

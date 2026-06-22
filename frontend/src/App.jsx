@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from './api.js';
 import LoginPage from './components/LoginPage.jsx';
-import Sidebar from './components/Sidebar.jsx';
+import Navbar from './components/Navbar.jsx';
 import CommunitiesView from './components/CommunitiesView.jsx';
 import ChatView from './components/ChatView.jsx';
 import NotificationsView from './components/NotificationsView.jsx';
@@ -78,8 +78,8 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-gray-900 font-sans">
-      <Sidebar
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50 dark:bg-gray-900 font-sans">
+      <Navbar
         user={user}
         tab={tab}
         setTab={setTab}

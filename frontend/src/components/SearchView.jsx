@@ -29,7 +29,8 @@ export default function SearchView({ onStartChat, onViewCommunity }) {
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-gray-900 p-6">
+    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-gray-900">
+      <div className="max-w-5xl mx-auto w-full px-4 sm:px-8 lg:px-12 pt-8 flex flex-col flex-1 overflow-hidden">
       {/* Header Search bar */}
       <div className="border-b border-slate-200 dark:border-slate-800 pb-4 mb-6">
         <h1 className="text-xl font-bold text-slate-905 dark:text-white mb-4">Global Search Database</h1>
@@ -180,6 +181,7 @@ export default function SearchView({ onStartChat, onViewCommunity }) {
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

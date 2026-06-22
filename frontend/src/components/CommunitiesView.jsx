@@ -5,11 +5,16 @@ import {
   Settings, Trash2, Edit, X, Globe, Shield, User, LogOut, CheckCircle, AlertCircle
 } from 'lucide-react';
 
-export default function CommunitiesView({ currentUser, initialCommunity, clearInitialCommunity }) {
+export default function CommunitiesView({ currentUser, initialCommunity, clearInitialCommunity, onSelectConversation }) {
   const [communities, setCommunities] = useState([]);
   const [activeComm, setActiveComm] = useState(null);
   const [posts, setPosts] = useState([]);
   const [members, setMembers] = useState([]);
+  
+  // Group / Channels inside Community
+  const [groups, setGroups] = useState([]);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
   
   // Modals / Dialogs
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -76,14 +81,17 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
     setActiveComm(comm);
     setPosts([]);
     setMembers([]);
+    setGroups([]);
     setActiveCommentPost(null);
     try {
-      const [postData, memberData] = await Promise.all([
+      const [postData, memberData, groupData] = await Promise.all([
         api.getPosts(comm.id),
-        api.getCommunityMembers(comm.id)
+        api.getCommunityMembers(comm.id),
+        api.getCommunityGroups(comm.id)
       ]);
       setPosts(postData);
       setMembers(memberData);
+      setGroups(groupData);
     } catch (e) {
       console.error(e);
     }
@@ -298,6 +306,40 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
       setMemberActionMsg(res.message);
       setTimeout(() => setMemberActionMsg(''), 3000);
     } catch (e) { setMemberActionMsg(e.message); }
+  };
+
+  const handleSelectGroup = async (group) => {
+    try {
+      const convs = await api.getConversations();
+      const matched = convs.find(c => c.id === group.id);
+      if (matched) {
+        onSelectConversation(matched);
+      } else {
+        onSelectConversation({
+          id: group.id,
+          name: group.name,
+          type: 'group',
+          community_id: activeComm.id
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return;
+    setError('');
+    try {
+      await api.createCommunityGroup(activeComm.id, newGroupName.trim());
+      setNewGroupName('');
+      setShowCreateGroupModal(false);
+      const updatedGroups = await api.getCommunityGroups(activeComm.id);
+      setGroups(updatedGroups);
+    } catch (err) {
+      setError(err.message || 'Failed to create group');
+    }
   };
 
   return (
@@ -533,12 +575,12 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
                 <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">{post.content}</p>
 
                 {/* Media */}
-                {post.image_url && (
+                {post.image_url && post.image_url !== 'null' && post.image_url !== 'undefined' && (
                   <div className="rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 max-h-96 bg-slate-900">
                     <img src={post.image_url} alt="" className="w-full h-full object-contain" />
                   </div>
                 )}
-                {post.video_url && (
+                {post.video_url && post.video_url !== 'null' && post.video_url !== 'undefined' && (
                   <div className="rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 max-h-96 bg-slate-900">
                     <video src={post.video_url} controls className="w-full h-full object-contain" />
                   </div>
@@ -669,6 +711,42 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
       {/* 3. Right Column: Community Info / Members */}
       {activeComm && activeComm.is_member && (
         <div className="w-64 flex-shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 p-4 flex flex-col overflow-y-auto">
+          {/* GROUPS / CHANNELS SECTION */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Groups</h3>
+              {activeComm.role === 'admin' && (
+                <button
+                  onClick={() => setShowCreateGroupModal(true)}
+                  title="Add Group"
+                  className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
+            </div>
+            
+            <div className="space-y-1">
+              {groups.map(g => (
+                <div 
+                  key={g.id}
+                  onClick={() => handleSelectGroup(g)}
+                  className="p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer flex items-center justify-between border border-transparent hover:border-slate-100 dark:hover:border-slate-800 transition-all group"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-slate-400 font-medium">#</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{g.name}</span>
+                  </div>
+                  {g.name.toLowerCase().includes('announcement') && (
+                    <span className="text-[9px] bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 px-1 rounded font-bold flex-shrink-0">📢</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <hr className="border-slate-100 dark:border-slate-800 mb-4" />
+
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Members</h3>
             {activeComm.role === 'admin' && (
@@ -875,6 +953,45 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
                 <p className="text-center text-xs text-slate-400 py-8">All users are already members.</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* CREATE GROUP MODAL */}
+      {showCreateGroupModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-950 rounded-2xl border border-slate-200 dark:border-slate-850 max-w-sm w-full p-6 shadow-xl relative animate-slide-up">
+            <button 
+              onClick={() => {
+                setShowCreateGroupModal(false);
+                setError('');
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X size={18} />
+            </button>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white mb-4">Create New Group</h2>
+            <form onSubmit={handleCreateGroup} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Group Name</label>
+                <input
+                  type="text" required
+                  placeholder="e.g. general, announcements"
+                  value={newGroupName} onChange={e => setNewGroupName(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
+                />
+              </div>
+              {error && (
+                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/20 text-rose-500 text-xs rounded-xl flex items-center gap-2">
+                  <AlertCircle size={14} /> <span>{error}</span>
+                </div>
+              )}
+              <button 
+                type="submit"
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/10 transition-colors"
+              >
+                Create Group
+              </button>
+            </form>
           </div>
         </div>
       )}

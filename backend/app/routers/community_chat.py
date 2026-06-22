@@ -242,14 +242,18 @@ def create_community(
     cm = CommunityMember(community_id=c.id, user_id=current_user.id, role="admin")
     db.add(cm)
     
-    # Automatically create a Community Group Chat Conversation
-    conv = Conversation(name=f"{c.name} Lounge", type="group", community_id=c.id)
-    db.add(conv)
+    # Automatically create Lounge and Announcements conversations
+    lounge = Conversation(name="Lounge", type="group", community_id=c.id)
+    ann = Conversation(name="Announcements", type="group", community_id=c.id)
+    db.add(lounge)
+    db.add(ann)
     db.commit()
-    db.refresh(conv)
+    db.refresh(lounge)
+    db.refresh(ann)
     
-    # Add creator to this group conversation
-    db.add(ConversationMember(conversation_id=conv.id, user_id=current_user.id))
+    # Add creator to these group conversations
+    db.add(ConversationMember(conversation_id=lounge.id, user_id=current_user.id))
+    db.add(ConversationMember(conversation_id=ann.id, user_id=current_user.id))
     db.commit()
     
     return {
@@ -324,12 +328,12 @@ def join_community(community_id: int, current_user: User = Depends(get_current_u
     member = CommunityMember(community_id=community_id, user_id=current_user.id, role="member")
     db.add(member)
     
-    # Automatically add to the community group conversation
-    conv = db.query(Conversation).filter(
+    # Automatically add to all community group conversations
+    convs = db.query(Conversation).filter(
         Conversation.community_id == community_id,
         Conversation.type == "group"
-    ).first()
-    if conv:
+    ).all()
+    for conv in convs:
         # Check if already conversation member
         cv_m = db.query(ConversationMember).filter(
             ConversationMember.conversation_id == conv.id,
@@ -352,12 +356,12 @@ def leave_community(community_id: int, current_user: User = Depends(get_current_
         
     db.delete(cm)
     
-    # Remove from conversation
-    conv = db.query(Conversation).filter(
+    # Remove from all conversations in community
+    convs = db.query(Conversation).filter(
         Conversation.community_id == community_id,
         Conversation.type == "group"
-    ).first()
-    if conv:
+    ).all()
+    for conv in convs:
         cv_m = db.query(ConversationMember).filter(
             ConversationMember.conversation_id == conv.id,
             ConversationMember.user_id == current_user.id
@@ -384,6 +388,109 @@ def list_community_members(community_id: int, db: Session = Depends(get_db)):
                 "joined_at": m.joined_at
             })
     return result
+
+# --- COMMUNITY GROUPS ---
+@router.get("/communities/{community_id}/groups")
+def list_community_groups(
+    community_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Verify membership
+    cm = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == current_user.id
+    ).first()
+    if not cm:
+        raise HTTPException(status_code=403, detail="You must be a member of the community to view its groups.")
+        
+    convs = db.query(Conversation).filter(
+        Conversation.community_id == community_id,
+        Conversation.type == "group"
+    ).all()
+    
+    # Retrospectively ensure both Announcements and at least one general group (Lounge) exist
+    has_ann = any(c.name.lower() == "announcements" for c in convs)
+    if not has_ann:
+        ann = Conversation(type="group", name="Announcements", community_id=community_id)
+        db.add(ann)
+        db.commit()
+        db.refresh(ann)
+        
+        # Add all community members to this Announcements group
+        members = db.query(CommunityMember.user_id).filter(CommunityMember.community_id == community_id).all()
+        for m in members:
+            db.add(ConversationMember(conversation_id=ann.id, user_id=m[0]))
+        db.commit()
+        
+        # Re-fetch convs
+        convs = db.query(Conversation).filter(
+            Conversation.community_id == community_id,
+            Conversation.type == "group"
+        ).all()
+        
+    # If no other groups exist, also create Lounge
+    if len(convs) <= 1:
+        has_lounge = any(c.name.lower() == "lounge" for c in convs)
+        if not has_lounge:
+            lounge = Conversation(type="group", name="Lounge", community_id=community_id)
+            db.add(lounge)
+            db.commit()
+            db.refresh(lounge)
+            
+            # Add all community members to Lounge
+            members = db.query(CommunityMember.user_id).filter(CommunityMember.community_id == community_id).all()
+            for m in members:
+                db.add(ConversationMember(conversation_id=lounge.id, user_id=m[0]))
+            db.commit()
+            
+            # Re-fetch convs
+            convs = db.query(Conversation).filter(
+                Conversation.community_id == community_id,
+                Conversation.type == "group"
+            ).all()
+        
+    return [{
+        "id": c.id,
+        "name": c.name,
+        "type": c.type,
+        "created_at": c.created_at
+    } for c in convs]
+
+@router.post("/communities/{community_id}/groups")
+def create_community_group(
+    community_id: int,
+    name: str = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Only community admin can add groups
+    cm = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == current_user.id,
+        CommunityMember.role == "admin"
+    ).first()
+    if not cm:
+        raise HTTPException(status_code=403, detail="Only community admin can create groups.")
+        
+    # Create new group conversation
+    conv = Conversation(type="group", name=name.strip(), community_id=community_id)
+    db.add(conv)
+    db.commit()
+    db.refresh(conv)
+    
+    # Add all existing community members to this group conversation
+    members = db.query(CommunityMember.user_id).filter(CommunityMember.community_id == community_id).all()
+    for m in members:
+        db.add(ConversationMember(conversation_id=conv.id, user_id=m[0]))
+    db.commit()
+    
+    return {
+        "id": conv.id,
+        "name": conv.name,
+        "type": conv.type,
+        "created_at": conv.created_at
+    }
 
 # Admin: Add a member directly to a community
 @router.post("/communities/{community_id}/members/{user_id}")
@@ -415,12 +522,12 @@ def add_community_member(
 
     db.add(CommunityMember(community_id=community_id, user_id=user_id, role="member"))
 
-    # Also add to community group conversation
-    conv = db.query(Conversation).filter(
+    # Also add to all community group conversations
+    convs = db.query(Conversation).filter(
         Conversation.community_id == community_id,
         Conversation.type == "group"
-    ).first()
-    if conv:
+    ).all()
+    for conv in convs:
         cv_m = db.query(ConversationMember).filter(
             ConversationMember.conversation_id == conv.id,
             ConversationMember.user_id == user_id
@@ -460,12 +567,12 @@ def remove_community_member(
 
     db.delete(cm)
 
-    # Also remove from community group conversation
-    conv = db.query(Conversation).filter(
+    # Also remove from all community group conversations
+    convs = db.query(Conversation).filter(
         Conversation.community_id == community_id,
         Conversation.type == "group"
-    ).first()
-    if conv:
+    ).all()
+    for conv in convs:
         cv_m = db.query(ConversationMember).filter(
             ConversationMember.conversation_id == conv.id,
             ConversationMember.user_id == user_id
@@ -567,6 +674,12 @@ def create_post(
     if not cm:
         raise HTTPException(status_code=403, detail="You must be a member of the community to post.")
         
+    # Sanitize image_url and video_url (handling literal 'null'/'undefined' or empty strings from client)
+    if image_url in ("null", "undefined", ""):
+        image_url = None
+    if video_url in ("null", "undefined", ""):
+        video_url = None
+
     post = CommunityPost(
         community_id=community_id,
         user_id=current_user.id,
@@ -770,8 +883,16 @@ def list_conversations(current_user: User = Depends(get_current_user), db: Sessi
             # Community group chat
             comm = db.query(Community).filter(Community.id == c.community_id).first()
             if comm:
-                conv_name = f"{comm.name} Feed Chat"
+                conv_name = f"{comm.name} - {c.name}" if c.name else f"{comm.name} Lounge"
                 conv_avatar = comm.image_url
+        
+        community_role = None
+        if c.community_id:
+            member_role = db.query(CommunityMember.role).filter(
+                CommunityMember.community_id == c.community_id,
+                CommunityMember.user_id == current_user.id
+            ).scalar()
+            community_role = member_role
         
         result.append({
             "id": c.id,
@@ -779,6 +900,7 @@ def list_conversations(current_user: User = Depends(get_current_user), db: Sessi
             "avatar_url": conv_avatar or "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150",
             "type": c.type,
             "community_id": c.community_id,
+            "community_role": community_role,
             "created_at": c.created_at,
             "unread_count": unread_count,
             "last_message": {
@@ -831,6 +953,16 @@ def get_or_create_conversation(
         return conv
     else:
         # Group, batch, project chat creation
+        if community_id:
+            # Check if current user is admin of this community
+            admin_check = db.query(CommunityMember).filter(
+                CommunityMember.community_id == community_id,
+                CommunityMember.user_id == current_user.id,
+                CommunityMember.role == "admin"
+            ).first()
+            if not admin_check:
+                raise HTTPException(status_code=403, detail="Only community admin can add groups to this community.")
+
         conv = Conversation(type=type, name=name, community_id=community_id)
         db.add(conv)
         db.commit()
@@ -903,6 +1035,21 @@ async def send_message(
     if not member:
         raise HTTPException(status_code=403, detail="Access denied.")
         
+    # Check if announcements channel (only admins can post)
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if conv and conv.community_id and "announcement" in (conv.name or "").lower():
+        comm_admin = db.query(CommunityMember).filter(
+            CommunityMember.community_id == conv.community_id,
+            CommunityMember.user_id == current_user.id,
+            CommunityMember.role == "admin"
+        ).first()
+        if not comm_admin:
+            raise HTTPException(status_code=403, detail="Only community admins can post in the Announcements channel.")
+        
+    # Sanitize file_url
+    if file_url in ("null", "undefined", ""):
+        file_url = None
+
     msg = Message(
         conversation_id=conversation_id,
         sender_id=current_user.id,

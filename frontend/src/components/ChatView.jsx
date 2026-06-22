@@ -598,47 +598,54 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
 
           {/* Active input bar */}
           <div className="bg-white dark:bg-gray-950 border-t border-slate-200 dark:border-slate-800 p-4">
-            <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleAttachFile} 
-                className="hidden" 
-                accept="image/*,video/*"
-              />
-              <button
-                type="button"
-                disabled={uploading}
-                onClick={() => fileInputRef.current.click()}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-650 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
-                title="Attach Photo/Video"
-              >
-                {uploading ? (
-                  <Loader2 size={18} className="animate-spin text-indigo-500" />
-                ) : (
-                  <Paperclip size={18} />
-                )}
-              </button>
+            {activeConv?.community_id && activeConv?.name?.toLowerCase().includes('announcement') && activeConv?.community_role !== 'admin' ? (
+              <div className="text-center py-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl text-xs font-semibold select-none flex items-center justify-center gap-1.5">
+                <span>📢</span>
+                <span>Only community admins can send messages in this announcements channel.</span>
+              </div>
+            ) : (
+              <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleAttachFile} 
+                  className="hidden" 
+                  accept="image/*,video/*"
+                />
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current.click()}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-650 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                  title="Attach Photo/Video"
+                >
+                  {uploading ? (
+                    <Loader2 size={18} className="animate-spin text-indigo-500" />
+                  ) : (
+                    <Paperclip size={18} />
+                  )}
+                </button>
 
-              <input
-                type="text"
-                placeholder="Type a message..."
-                value={newMessageText}
-                onChange={e => {
-                  setNewMessageText(e.target.value);
-                  handleTyping();
-                }}
-                className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
-              />
+                <input
+                  type="text"
+                  placeholder="Type a message..."
+                  value={newMessageText}
+                  onChange={e => {
+                    setNewMessageText(e.target.value);
+                    handleTyping();
+                  }}
+                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 text-slate-900 dark:text-white"
+                />
 
-              <button
-                type="submit"
-                disabled={!newMessageText.trim()}
-                className="p-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm shadow-indigo-600/15"
-              >
-                <Send size={16} />
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={!newMessageText.trim()}
+                  className="p-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm shadow-indigo-600/15"
+                >
+                  <Send size={16} />
+                </button>
+              </form>
+            )}
             {uploadError && <p className="text-[10px] text-rose-500 mt-1 pl-1">{uploadError}</p>}
           </div>
         </div>

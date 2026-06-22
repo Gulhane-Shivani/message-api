@@ -56,11 +56,17 @@ export const api = {
   addCommunityMember: (communityId, userId) => client.post(`/communities/${communityId}/members/${userId}`),
   removeCommunityMember: (communityId, userId) => client.delete(`/communities/${communityId}/members/${userId}`),
   inviteCommunityMember: (communityId, userId) => client.post(`/communities/${communityId}/invite/${userId}`),
+  getCommunityGroups: (communityId) => client.get(`/communities/${communityId}/groups`),
+  createCommunityGroup: (communityId, name) => client.post(`/communities/${communityId}/groups?name=${encodeURIComponent(name)}`),
 
   // Community Feed
   getPosts: (communityId) => client.get(`/communities/${communityId}/posts`),
-  createPost: (communityId, content, imageUrl = '', videoUrl = '') => 
-    client.post(`/communities/${communityId}/posts?content=${encodeURIComponent(content)}&image_url=${encodeURIComponent(imageUrl)}&video_url=${encodeURIComponent(videoUrl)}`),
+  createPost: (communityId, content, imageUrl = '', videoUrl = '') => {
+    let url = `/communities/${communityId}/posts?content=${encodeURIComponent(content)}`;
+    if (imageUrl) url += `&image_url=${encodeURIComponent(imageUrl)}`;
+    if (videoUrl) url += `&video_url=${encodeURIComponent(videoUrl)}`;
+    return client.post(url);
+  },
   likePost: (postId) => client.post(`/posts/${postId}/like`),
   getComments: (postId) => client.get(`/posts/${postId}/comments`),
   commentOnPost: (postId, content, parentId = null) => {
@@ -79,8 +85,11 @@ export const api = {
     return client.post(url);
   },
   getMessages: (conversationId) => client.get(`/conversations/${conversationId}/messages`),
-  sendMessage: (conversationId, content, messageType = 'text', fileUrl = '') => 
-    client.post(`/conversations/${conversationId}/messages?content=${encodeURIComponent(content)}&message_type=${messageType}&file_url=${encodeURIComponent(fileUrl)}`),
+  sendMessage: (conversationId, content, messageType = 'text', fileUrl = '') => {
+    let url = `/conversations/${conversationId}/messages?content=${encodeURIComponent(content)}&message_type=${messageType}`;
+    if (fileUrl) url += `&file_url=${encodeURIComponent(fileUrl)}`;
+    return client.post(url);
+  },
   pinMessage: (messageId) => client.put(`/messages/${messageId}/pin`),
   reactToMessage: (messageId, reactionType) => client.post(`/messages/${messageId}/react?reaction_type=${encodeURIComponent(reactionType)}`),
 

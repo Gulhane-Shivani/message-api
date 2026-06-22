@@ -93,6 +93,10 @@ export default function App() {
             currentUser={user} 
             initialCommunity={selectedCommunity} 
             clearInitialCommunity={() => setSelectedCommunity(null)} 
+            onSelectConversation={(conv) => {
+              setSelectedConversation(conv);
+              setTab('chat');
+            }}
           />
         )}
         {tab === 'chat' && (

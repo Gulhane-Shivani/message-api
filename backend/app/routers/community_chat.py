@@ -182,6 +182,11 @@ def list_communities(current_user: User = Depends(get_current_user), db: Session
             CommunityMember.user_id == current_user.id
         ).first()
         
+        # If community is linked to a batch course, check if student is enrolled
+        is_batch_community = db.query(BatchCourse).filter(BatchCourse.community_id == c.id).first() is not None
+        if is_batch_community and not current_user.is_admin and not member:
+            continue
+        
         # If community is private, only show it to members and those who were sent an invite
         if c.community_type == "private" and not member:
             invite = db.query(Notification).filter(
@@ -307,6 +312,11 @@ def join_community(community_id: int, current_user: User = Depends(get_current_u
     if not c:
         raise HTTPException(status_code=404, detail="Community not found.")
         
+    # Check if community is batch-linked
+    is_batch_community = db.query(BatchCourse).filter(BatchCourse.community_id == community_id).first() is not None
+    if is_batch_community and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Cannot join a batch community directly. Please enroll in the course.")
+
     # Check existing member
     cm = db.query(CommunityMember).filter(
         CommunityMember.community_id == community_id,
@@ -373,7 +383,27 @@ def leave_community(community_id: int, current_user: User = Depends(get_current_
     return {"status": True, "message": "Left community"}
 
 @router.get("/communities/{community_id}/members")
-def list_community_members(community_id: int, db: Session = Depends(get_db)):
+def list_community_members(
+    community_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    c = db.query(Community).filter(Community.id == community_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Community not found.")
+
+    is_member = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == current_user.id
+    ).first() is not None
+
+    is_batch_community = db.query(BatchCourse).filter(BatchCourse.community_id == community_id).first() is not None
+    if is_batch_community and not current_user.is_admin and not is_member:
+        raise HTTPException(status_code=403, detail="Access denied. You must be enrolled in the course to view members.")
+
+    if c.community_type == "private" and not current_user.is_admin and not is_member:
+        raise HTTPException(status_code=403, detail="Access denied. You must be a member of this private community to view members.")
+
     members = db.query(CommunityMember).filter(CommunityMember.community_id == community_id).all()
     result = []
     for m in members:
@@ -661,6 +691,22 @@ def invite_community_member(
 # --- COMMUNITY FEED (POSTS) ---
 @router.get("/communities/{community_id}/posts")
 def list_community_posts(community_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    c = db.query(Community).filter(Community.id == community_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Community not found.")
+
+    is_member = db.query(CommunityMember).filter(
+        CommunityMember.community_id == community_id,
+        CommunityMember.user_id == current_user.id
+    ).first() is not None
+
+    is_batch_community = db.query(BatchCourse).filter(BatchCourse.community_id == community_id).first() is not None
+    if is_batch_community and not current_user.is_admin and not is_member:
+        raise HTTPException(status_code=403, detail="Access denied. You must be enrolled in the course to view posts.")
+
+    if c.community_type == "private" and not current_user.is_admin and not is_member:
+        raise HTTPException(status_code=403, detail="Access denied. You must be a member of this private community to view posts.")
+
     posts = db.query(CommunityPost).filter(
         CommunityPost.community_id == community_id
     ).order_by(CommunityPost.created_at.desc()).all()
@@ -1243,13 +1289,19 @@ def search_all(q: str = Query(...), current_user: User = Depends(get_current_use
     
     communities = []
     for c in raw_communities:
+        member = db.query(CommunityMember).filter(
+            CommunityMember.community_id == c.id,
+            CommunityMember.user_id == current_user.id
+        ).first()
+        
+        is_batch_community = db.query(BatchCourse).filter(BatchCourse.community_id == c.id).first() is not None
+        if is_batch_community and not current_user.is_admin and not member:
+            continue
+
         if c.community_type != "private":
             communities.append(c)
         else:
-            is_member = db.query(CommunityMember).filter(
-                CommunityMember.community_id == c.id,
-                CommunityMember.user_id == current_user.id
-            ).first() is not None
+            is_member = member is not None
             if is_member:
                 communities.append(c)
             else:

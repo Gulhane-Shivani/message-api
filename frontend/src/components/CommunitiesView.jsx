@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { api, fmtDate } from '../api.js';
 import { 
   Plus, Search, Image, Video, ThumbsUp, MessageSquare, CornerDownRight, 
-  Settings, Trash2, Edit, X, Globe, Shield, User, LogOut, CheckCircle, AlertCircle
+  Settings, Trash2, Edit, X, Globe, Shield, User, LogOut, CheckCircle, AlertCircle,
+  ArrowLeft, Info
 } from 'lucide-react';
 
 export default function CommunitiesView({ currentUser, initialCommunity, clearInitialCommunity, onSelectConversation }) {
   const [communities, setCommunities] = useState([]);
   const [activeComm, setActiveComm] = useState(null);
+  const [mobileView, setMobileView] = useState('list'); // 'list' | 'feed' | 'info'
   const [posts, setPosts] = useState([]);
   const [members, setMembers] = useState([]);
   
@@ -79,6 +81,7 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
 
   const handleSelectCommunity = async (comm) => {
     setActiveComm(comm);
+    setMobileView('feed');
     setPosts([]);
     setMembers([]);
     setGroups([]);
@@ -356,7 +359,9 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
   return (
     <div className="flex-1 flex overflow-hidden bg-slate-50 dark:bg-gray-900">
       {/* 1. Left Column: Community Discovery */}
-      <div className="w-80 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 flex flex-col">
+      <div className={`w-full md:w-80 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 flex flex-col ${
+        mobileView === 'list' ? 'flex' : 'hidden md:flex'
+      }`}>
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-800 dark:text-white">Communities</h2>
           <button 
@@ -429,40 +434,60 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
 
       {/* 2. Middle Column: Community Feed */}
       {activeComm ? (
-        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900/50">
+        <div className={`flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900/50 ${
+          mobileView === 'feed' ? 'flex' : 'hidden md:flex'
+        }`}>
           {/* Cover Header */}
           <div className="bg-white dark:bg-gray-950 border-b border-slate-200 dark:border-slate-800 p-5 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <button 
+                onClick={() => setMobileView('list')}
+                className="md:hidden p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-500 flex-shrink-0"
+                title="Back to Communities"
+              >
+                <ArrowLeft size={16} />
+              </button>
               <img 
                 src={activeComm.image_url} 
                 alt={activeComm.name} 
-                className="w-16 h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-800"
+                className="w-12 h-12 md:w-16 md:h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-800 flex-shrink-0"
               />
-              <div>
-                <h1 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <div className="min-w-0">
+                <h1 className="text-base md:text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2 truncate">
                   {activeComm.name}
                 </h1>
-                <p className="text-sm text-slate-400 dark:text-slate-500 max-w-xl truncate">{activeComm.description}</p>
+                <p className="text-xs md:text-sm text-slate-400 dark:text-slate-500 max-w-xl truncate">{activeComm.description}</p>
               </div>
             </div>
-            {activeComm.creator_id === currentUser.id && (
-              <div className="flex gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {activeComm.is_member && (
                 <button
-                  onClick={handleOpenEditModal}
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 transition-colors"
-                  title="Edit Community"
+                  onClick={() => setMobileView('info')}
+                  className="md:hidden p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-500"
+                  title="Community Info"
                 >
-                  <Edit size={16} />
+                  <Info size={16} />
                 </button>
-                <button
-                  onClick={handleDeleteCommunity}
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/20 text-slate-600 dark:text-slate-400 transition-colors"
-                  title="Delete Community"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            )}
+              )}
+              {activeComm.creator_id === currentUser.id && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleOpenEditModal}
+                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 transition-colors"
+                    title="Edit Community"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={handleDeleteCommunity}
+                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/20 text-slate-600 dark:text-slate-400 transition-colors"
+                    title="Delete Community"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -714,14 +739,27 @@ export default function CommunitiesView({ currentUser, initialCommunity, clearIn
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-slate-400">
+        <div className="hidden md:flex flex-1 items-center justify-center text-slate-400">
           Select or Create a Community to begin.
         </div>
       )}
 
       {/* 3. Right Column: Community Info / Members */}
       {activeComm && activeComm.is_member && (
-        <div className="w-64 flex-shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 p-4 flex flex-col overflow-y-auto">
+        <div className={`w-full md:w-64 flex-shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 p-4 flex flex-col overflow-y-auto ${
+          mobileView === 'info' ? 'flex' : 'hidden md:flex'
+        }`}>
+          {/* Mobile Back Button to Feed */}
+          <div className="md:hidden flex items-center gap-2 mb-4">
+            <button
+              onClick={() => setMobileView('feed')}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-500 flex items-center gap-1 text-xs font-bold"
+            >
+              <ArrowLeft size={14} />
+              <span>Back to Feed</span>
+            </button>
+          </div>
+          
           {/* GROUPS / CHANNELS SECTION */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">

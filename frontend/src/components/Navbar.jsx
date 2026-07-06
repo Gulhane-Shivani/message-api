@@ -8,7 +8,7 @@ export default function Navbar({ user, tab, setTab, notificationCount, chatUnrea
         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 flex-shrink-0 hover:scale-105 transition-transform">
           <Users size={20} className="text-white" />
         </div>
-        <div>
+        <div className="hidden sm:block">
           <span className="text-base font-black text-slate-800 dark:text-white tracking-tight">Messaging Hub</span>
           <p className="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold tracking-widest uppercase -mt-0.5">Workspace</p>
         </div>
@@ -58,14 +58,14 @@ function NavBtn({ label, icon, active, onClick, badge, badgeColor, pulse }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:-translate-y-px active:scale-95
+      className={`relative flex items-center gap-2 px-3 py-2 md:px-4 md:py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:-translate-y-px active:scale-95
         ${active
           ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-600/20'
           : 'text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900'
         }`}
     >
       {icon}
-      <span>{label}</span>
+      <span className="hidden md:inline">{label}</span>
       {badge > 0 && (
         <span className={`absolute -top-1.5 -right-1 ${badgeColor} text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border-2 border-white dark:border-slate-950 shadow ${pulse ? 'animate-pulse' : ''}`}>
           {badge}

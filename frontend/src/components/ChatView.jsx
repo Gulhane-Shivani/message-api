@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { api, fmtDate, WS_BASE_URL } from '../api.js';
 import { 
   Search, MessageSquare, Send, Image, Video, Paperclip, Pin, X, Check, CheckCheck,
-  Smile, User, Users, Info, ChevronDown, Award, Sparkles, Loader2
+  Smile, User, Users, Info, ChevronDown, Award, Sparkles, Loader2, ArrowLeft
 } from 'lucide-react';
 
 export default function ChatView({ currentUser, initialConversation, clearInitialConversation }) {
   const [conversations, setConversations] = useState([]);
   const [activeConv, setActiveConv] = useState(null);
+  const [mobileView, setMobileView] = useState('list'); // 'list' | 'chat'
   const [messages, setMessages] = useState([]);
   const [newMessageText, setNewMessageText] = useState('');
   
@@ -146,6 +147,7 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
 
   const handleSelectConversation = async (conv) => {
     setActiveConv(conv);
+    setMobileView('chat');
     setMessages([]);
     try {
       const msgData = await api.getMessages(conv.id);
@@ -336,7 +338,9 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
   return (
     <div className="flex-1 flex overflow-hidden bg-slate-50 dark:bg-gray-900">
       {/* 1. Left Panel: Conversations List */}
-      <div className="w-80 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 flex flex-col">
+      <div className={`w-full md:w-80 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-950 flex flex-col ${
+        mobileView === 'list' ? 'flex' : 'hidden md:flex'
+      }`}>
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white">Messages</h2>
@@ -433,14 +437,23 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
 
       {/* 2. Middle Panel: Messages History */}
       {activeConv ? (
-        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900/50">
+        <div className={`flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900/50 ${
+          mobileView === 'chat' ? 'flex' : 'hidden md:flex'
+        }`}>
           {/* Active chat header */}
           <div className="bg-white dark:bg-gray-950 border-b border-slate-200 dark:border-slate-800 px-5 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => setMobileView('list')}
+                className="md:hidden p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-500 mr-2 flex-shrink-0"
+                title="Back to Chats"
+              >
+                <ArrowLeft size={16} />
+              </button>
               <img
                 src={activeConv.avatar_url}
                 alt={activeConv.name}
-                className="w-10 h-10 rounded-full object-cover"
+                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
               />
               <div>
                 <h3 className="text-sm font-bold text-slate-850 dark:text-white">{activeConv.name}</h3>
@@ -650,7 +663,7 @@ export default function ChatView({ currentUser, initialConversation, clearInitia
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-slate-400">
+        <div className="hidden md:flex flex-1 items-center justify-center text-slate-400">
           Select a chat thread or click New Chat to start.
         </div>
       )}
